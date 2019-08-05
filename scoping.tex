@@ -1,0 +1,126 @@
+\section{Scoping rules}
+\label{sec:variable-scoping}
+
+As far as the variables environment is concerned, the scoping rules are
+identical to those of SQL. Section~\ref{sec:scoping-variables} explained how the
+resolution of variable naming conflicts favors the variables defined by the
+inner queries.
+
+The scoping rules discussed in the present section discuss the resolution of
+naming conflicts between names defined in the database environment and the
+variables of the environment variables. The potential for such naming conflicts
+is driven by the nested data of PartiQL, as illustrated next.
+
+Notice there are a few more naming conventions, pertaining to the use of
+attribute names defined in the \gl{SELECT} clause into the \gl{GROUP BY} and
+\gl{ORDER BY} clause. These conventions are explained in along with the
+semantics of the respective clauses (see Sections~\ref{section:group-by}
+and~\ref{section:order-by}).
+
+\almann{TODO: Clean up this terminology with respect to
+Section~\ref{sec:environments-and-bindings}}
+
+\begin{example}
+The following example illustrates how SQL compatibility issues and the needs of
+navigating into nested data need to be carefully merged together. Consider the
+following database that has a table \gt{c}, i.e. a collection of tuples, and
+also named data \gt{x.n} and \gt{y}.
+
+\begin{tabbing}
+\ \ \ \=\gt{t.c: \ob\ }\=\gt{\{'a':1, 'n':[\{'b':11, 'c':12\}]\},}\\
+\>\>\gt{\{'a':2, 'n':[\{'b':21, 'c':22\}]\}}\\
+\>\>\gt{\cb}\\
+\>\gt{x.n : \ob\ \{'b':3\}\ \cb}\\
+\>\gt{y: \{'a':1, 'b':2\}}
+\end{tabbing}
+
+Then consider the query
+\begin{tabbing}
+\ \ \ \=\gl{SELECT t.a}\\
+\>\gl{FROM t.c AS x}\\
+\>\gl{WHERE x.a IN (SELECT y.b FROM x.n AS y)}
+\end{tabbing}
+
+This query poses many scoping issues:
+\begin{enumerate}
+\item Does \gt{x.n} refer to the named value \gt{x.n} or to the \gt{n} attribute
+of the variable \gt{x}? For SQL compatibility purposes it refers to the named
+value \gt{x.n}. Read below how to refer to the variable \gt{x}.
+\item Does \gt{y.b} refer to the \gt{b} attribute of the \gt{y} attribute or to
+the \gt{b} attribute of the named value \gt{y}? For SQL compatibility purposes
+it refers to the \gt{b} attribute of the variable \gt{y}.
+\end{enumerate}
+Notice how SQL compatibility required the database environment to take priority
+over the variables environment in the \gl{FROM} clause and then, vice versa, the
+variables environment to take priority over the database environment in the
+\gl{SELECT} clause.
+\end{example}
+
+\highlight{Scoping rules resolving naming conflicts between variables and database names}
+Since the rules are easier to express when all database names are a single
+identifier, such as \gt{thedb} or \gt{"the db"} (as opposed to paths, such as
+\gt{somedb.sometable}), we first specify the scoping rules under the assumption
+that all database names are a single identifier. We remove the assumption and
+generalize later.
+
+In the absence of schema the following rules apply
+\begin{enumerate}
+\item \gl{@}\gn{identifier} refers to the environment variable named
+\gn{identifier}; if there is no such environment variable, the \gn{identifier}
+refers to the database name \gn{identifier}; if there is no such database name
+either, the query fails compilation.
+\item in a \gl{FROM} clause path that starts with \gn{identifier}, the
+\gn{identifier} refers to the database name \gn{identifier}; if there is no such
+database name, the \gn{identifier} refers to a variable; otherwise query fails
+compilation. \footnote{A path is a \from\ clause path if it appears in the \from
+\ clause of the SFW query in which it is \textit{immediately} nested.}
+\item in a non-\from\ clause path that starts with \gn{identifier}, the
+\gn{identifier} refers to the environment variable named \gn{identifier}; if
+there is no such environment variable, the \gn{identifier} refers to the
+database name \gn{identifier}; if there is no such database name either, the
+query fails compilation.
+\end{enumerate}
+
+Next, we
+generalize to also allow for the possibility of database names of the form
+$\gn{identifier}\gl{.}\gn{indentifier}\gl{.}\ldots$. The following rules apply
+regarding the semantics of $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_n$, where
+$i_1, i_2, \ldots i_n$ are identifiers.
+\begin{itemize}
+\item \gl{@}$i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_n$ always refers to the
+environment variable named $i_1$; if there is no such variable and $i_1 \gl{.}
+i_2 \gl{.} \ldots \gl{.} i_m, m\leq n$ is a database name then $i_1 \gl{.} i_2
+\gl{.} \ldots \gl{.} i_m$ refers to such named database name. Again, if there is
+a choice, choose the largest $m$. If both the resolution to variable and the
+resolution to database name, fail the query during compilation.
+%
+\item if  $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_n$ is a \from\ path and $i_1
+\gl{.} i_2 \gl{.} \ldots \gl{.} i_m, m\leq n$ is a database name then $i_1
+\gl{.} i_2 \gl{.} \ldots \gl{.} i_m$ refers to such named database name and
+$i_{m+1} \gl{.} \ldots \gl{.} i_n$ is a series of tuple path navigations
+starting from the database name $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_m$. If
+there is a choice, choose the largest $m$, i.e., the longest database name.
+%
+\item if $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_n$ is a non-\from\ clause
+expression and $i_1$ is an environment variable then $i_1$ refers to such
+variable; if there is no such variable and $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.}
+i_m, m\leq n$ is a database name then $i_1 \gl{.} i_2 \gl{.} \ldots \gl{.} i_m$
+refers to such named database name. Again, if there is a choice, choose the
+largest $m$. If both the resolution to variable and the resolution to database
+name, fail the query during compilation.
+\end{itemize}
+
+\begin{example}
+Assume database names \gt{coll}, \gt{v.foo}, \gt {w}. Then in the query
+
+\begin{verbatim}
+1 SELECT v.foo
+2 FROM coll AS v, @v.foo AS w, 
+3          (SELECT w.a, u.b FROM @w.bar AS u)
+4          AS x
+\end{verbatim}
+
+\noindent  \gt{coll} refers to the database name. The \gt{v} in \gt{@v.foo} refers to the variable \gt{v}. If the \gt{@} were not there, \gt{v.foo} would refer to the database name \gt{v.foo}. The \gt{w} in \gt{w.a} refers to the variable defined in line~2. 
+
+Note, the expressions \gt{coll} and \gt{@v.foo} are \from\ clause expressions because they appear in the \from\ clause of the \gn{sfw\_query} of lines~1-4, in which they are immediately nested. Similarly, the expression \gt{@w.bar} is a \from\ clause expression because it appears in the \from\ clause of the \gn{sfw\_query} of line~3, in which it is immediately nested. In contrast, the expressions \gt{w.a} and \gt{u.b} are not \from\ clause expressions. Though they are nested into the \from\ clause of the query of lines~1-4, they are not immediately nested into the query of lines~1-4. 
+\end{example}

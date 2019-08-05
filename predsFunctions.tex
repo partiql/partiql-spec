@@ -1,0 +1,117 @@
+\section{Functions}
+\label{sec:preds-and-fns}
+
+The semantics of predicates (i.e., functions returning booleans) and
+(non-aggregate) functions in PartiQL are identical to those of SQL when their
+inputs are those that are allowed by SQL. PartiQL makes the following extensions
+for the cases where the inputs are beyond those allowed by SQL.
+ 
+\subsection{Inputs with wrong types:}
+\label{sec:fns-with-wrong-inputs}
+
+\almann{TODO confirm that this is implemented correctly in the implementation}
+
+Unlike SQL where typing issues can be detected during query compilation, the
+permissive option of PartiQL has to define semantics for the case where the
+inputs of a function are not compatible with the function/predicate arguments.
+Furthermore, PartiQL facilitates propagating missing input attributes to
+respective missing output attributes.
+
+Alike SQL, all functions have input argument types that they conform to. For example, the
+function \gl{log} expects numbers. All functions return \MISSING when they
+input data whose types do not conform to the input argument types. Since no
+function (other than \gl{IS MISSING}) has \MISSING as an input argument
+type, it follows that all functions return \MISSING when one of their inputs
+is \MISSING.
+
+\begin{example} 
+\label{xmpl:missing-on-wrong-types}
+
+The query
+
+\begin{tabbing}
+\gl{SELECT VALUE \{'a':3*v.a, 'b':3*(CAST v.b AS INTEGER)\}}\\
+\gl{FROM [\{'a':1, 'b':'1'\}, \{'a':2\}] v}
+\end{tabbing}
+
+\noindent results into \gl{\ob \{'a':3, 'b':3\}, \{'a':6\} \cb}. Notice how the
+missing \gt{b} attribute in the input leads to a respective missing attribute in
+the output.
+\end{example}
+
+\begin{example}
+Each one of these expressions returns \MISSING: \gt{5 + missing}, \gt{5 >
+'a'}, \gt{NOT \{a:1\}}.
+\end{example}
+
+\subsubsection{Equality}
+\label{sec:equality}
+Equality never fails in the type-checking mode and never returns \MISSING in
+the permissive mode. Instead, it can compare values of any two types, according
+to the rules of the PartiQL type system. For example, \gt{5 = 'a'} is
+\gl{false}.
+
+Since PartiQL variables may bind to composite values (collections, tuples),
+PartiQL extends the semantics of equality for these cases. In particular,
+equality in PartiQL is {\em deep equality}, defined as follows: 
+
+\begin{enumerate}
+\item Given two arrays $x$ and $y$ that have the same length $l$, the result of
+$x=y$ is the result of 
+\[\gt{eqg}(x[0], y[0])\ \gt{AND}\ \ldots\ \gt{AND}\ \gt{eqg}(x[l], y[l])\]
+The \gt{eqg}, unlike the \gt{=}, returns true when a \NULL is compared to a \NULL 
+or a \MISSING to a \MISSING. When the arrays $x$ and
+$y$ do not have the same length, the $x=y$ is \gt{false}.
+
+\almann{Yannis, it is a bit of a tragedy, that we cannot use equality for
+nested nulls/missing--the implementation does this for arrays/tuples/bags.\\
+I see no reason to make \NULL and \MISSING short-circuit in recursive
+equality--yes it is less orthogonal, but really not useful.\\
+Yannis: Fixed. I changed to using the \gl{eqg}. Fixed the following examples also.}
+
+\item A similar straightforward equality applies to tuples: 
+They have to have the same attributes. Then equality $t_1 =
+t_2$ is true if 
+\[\gt{eqg}(t_1.a_, t_2.a_1)\ \gl{AND}\ \ldots\ \gl{AND}\ \gt{eqg}(t_1.a_n, t_2.a_n)\]
+where $a_1, \ldots, a_n$ are the attributes that appear in $t_1$ and
+$t_2$.%
+
+\almann{TODO define this in terms of duplicate attribute names/values.
+Yannis: Are we going too far with duplicate attribute names?
+I thought the idea was to let them happen, let them propagate
+but do not redefine the language primitives to accomodate this possibility.
+I can see hard time supporting it beyond pass-thru.
+}
+ 
+\item Equality for bags is similarly straightforward: Two bags $x$ and $y$ are
+equal if and only if every element $e$ of $x$ that appears $n$ times in $x$ also
+appears $n$ times in $y$.
+\end{enumerate}
+
+\begin{example}
+
+The following are true:
+
+\begin{tabbing}
+\ \ \ \=\gt{\ob 3, 2, 4, 2 \cb = \ob 2, 2, 3, 4 \cb}\\
+\>\gt{\{'a':1, 'b':2\} = \{'b':2, 'a':1\}}\\
+\>\gt{\{'a':[0,1], 'b':2\} = \{'b':2, 'a':[0,1]\}}\\
+\end{tabbing}
+
+The following are false:
+
+\begin{tabbing}
+\ \ \ \=\gt{\ob 3, 4, 2 \cb = \ob 2, 2, 3, 4 \cb}\\
+\>\gt{\{'a':1, 'b':2\} = \{'a':1\}}\\
+\>\gt{\{'a':[0,1], 'b':2\} = \{'b':2, 'a':[0,1,2]\}}\\
+\end{tabbing}
+
+The following are also false. 
+
+\begin{tabbing}
+\ \ \ \=\gt{\{'a':1, 'b':2\} = \{'a':1\}}\\
+\>\gt{\{'a':1, 'b':2\} = \{'a':1, 'b':null\}}\\
+\>\gt{\{'a':[0,1], 'b':2\} = \{'b':2, 'a':[null,1]\}}\\
+\end{tabbing}
+\end{example}
+

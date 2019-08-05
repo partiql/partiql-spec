@@ -1,0 +1,549 @@
+\section{\from Clause Semantics}
+\label{sec:from}
+
+The formal semantics of a \from clause describe the collection of binding
+tuples $B^{out}_{\from}$ that is output by the \from clause. The semantics
+specify three cases and essentially extend the tuple calculus that underlies the
+SQL semantics.
+
+\begin{enumerate}
+\item The semantics specify what is the core semantics of a \from clause with a
+single \from item (Sections~\ref{sec:single-item-from} and ~\ref{sec:unpivot}).
+The term ``semantics of the \from item $f$'' is synonymous to the term
+``semantics of a \from clause with the single item $f$''. In either case, we
+refer to the specification of the collection of binding tuples $B^{out}_{\from}$
+that results from the evaluation of ``\from $f$''.
+
+\item Then the semantics specify how multiple \from items combine, according to
+the core semantics, using the join and outerjoin operations
+(Sections~\ref{sec:combining-multiple-item-join},
+\ref{sec:combining-multiple-item-leftjoin} and
+~\ref{sec:combining-multiple-item-full-outerjoin}). 
+
+\item Finally, the semantics specify the syntactic sugar structures that are
+overlaid over the core semantics. Their primary purpose is SQL compatibility.
+\end{enumerate}
+
+
+\subsection{Ranging Over Bags and Arrays}
+\label{sec:single-item-from}
+
+Next we define the semantics of a \from clause that has a single \from item
+and such item ranges over a bag or array. First consider the \from clause:
+
+\begin{lstlisting}
+FROM (*$a$*) AS (*$v$*) AT (*$p$*)
+\end{lstlisting}
+
+\noindent Let us call $v$ to be the \emph{element variable} and $p$ to be the
+\emph{position variable}. In the normal case, $a$ is an array $[ e_0, \ldots,
+e_{n-1} ]$. The \from clause outputs a bag of binding tuples. For each $e_i$,
+the bag has a binding tuple $\langle v: e_i, p:i \rangle$.
+
+\begin{example}
+\label{xmpl:single-from-item-with-order}
+
+Consider the following $\db$ (database environment):
+
+\begin{lstlisting}
+(*$\db = \langle$*)
+    someOrderedTable:[
+        {'a':0, 'b':0},
+        {'a':1, 'b':1}
+    ]
+(*$\rangle$*)
+\end{lstlisting}
+
+\noindent then the following \from clause:
+
+\begin{lstlisting}
+FROM someOrderedTable AS x AT y
+\end{lstlisting}
+
+\noindent outputs the bag of binding tuples:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob $\=
+    $\langle$ \lstinline|x:{'a':0, 'b':0}, y:0| $\rangle$\\
+\>\>$\langle$ \lstinline|x:{'a':1, 'b':1}, y:1| $\rangle$\\
+\>\>$\cb$
+\end{tabbing}
+\end{example}
+
+As in SQL, the keyword \as is optional. The same applies to all cases below
+where \as appears. If there is no \at clause, then the binding tuples have only
+the element variable. In particular, consider:
+
+\begin{lstlisting}
+FROM (*$a$*) AS (*$v$*)
+\end{lstlisting}
+
+\noindent Normally $a$ is a collection, i.e, an array
+$[ e_0, \ldots, e_{n-1} ]$ or a bag $\ob e_0, \ldots, e_{n-1} \cb$.
+In either case, the \from clause outputs a bag. For each $e_i$, the bag
+has a binding tuple $\langle v:e_i \rangle$.
+
+\begin{example}
+Consider again the database of Example~\ref{xmpl:single-from-item-with-order}
+and then the \from clause
+
+\begin{lstlisting}
+FROM someOrderedTable AS x
+\end{lstlisting}
+
+\noindent this \from clause outputs:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob $\=
+    $\langle$ \lstinline|x:{'a':0, 'b':0}| $\rangle$\\
+\>\>$\langle$ \lstinline|x:{'a':1, 'b':1}| $\rangle$\\
+\>\>$\cb$
+\end{tabbing}
+\end{example}
+
+\subsubsection{Mistyping Cases}
+\label{sec:bag-array-mistypings}
+
+In the following cases the expression in the \from clause item has the wrong
+type. Under the type checking option, all of these cases raise an error and the
+query fails. Under the permissive option, the cases proceed as follows
+
+\begin{itemize}
+\item \highlight{Position variable on bags} Consider the clause:
+
+\begin{lstlisting}
+FROM (*$b$*) AS (*$v$*) AT (*$p$*)
+\end{lstlisting}
+
+\noindent and assume that $b$ is a bag $\ob e_0, \ldots, e_{n-1} \cb$. The
+output is a bag with binding tuples $\langle v: e_i, p: \MISSING \rangle$. The
+value \MISSING for the variable $p$ indicates that the order of elements in
+the bag was meaningless. 
+
+\item \highlight{Iteration over a scalar value} Consider the query:
+
+\begin{lstlisting}
+FROM (*$s$*) AS (*$v$*) AT (*$p$*)
+\end{lstlisting}
+
+\noindent or the query:
+
+\begin{lstlisting}
+FROM (*$s$*) AS (*$v$*)
+\end{lstlisting}
+ 
+\noindent where $s$ is a scalar value. Then $s$ coerces into the bag $\ob s
+\cb$, i.e., the bag that has a single element, the $s$. The rest of the
+semantics is identical to what happens when the lhs of the \from item is a bag.
+
+\begin{example}
+Consider again the database of Example~\ref{xmpl:single-from-item-with-order}
+and the \from clause: 
+
+\begin{lstlisting}
+FROM someOrderedTable[0].a AS x
+\end{lstlisting}
+
+The expression \gl{someOrderedTable[0].a} evaluates to \gt{0} and,
+consequently, the \from clause outputs a single binding tuple:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob
+        \langle$ \lstinline|x:0| $\rangle \cb$\\
+\end{tabbing}
+\end{example}
+
+\item \highlight{Iteration over a tuple value} Consider the query:
+
+\begin{lstlisting}
+FROM (*$t$*) AS (*$v$*) AT (*$p$*)
+\end{lstlisting}
+
+\noindent or the query:
+
+\begin{lstlisting}
+FROM (*$t$*) AS (*$v$*)
+\end{lstlisting}
+ 
+\noindent where $t$ is a tuple. Then $t$ coerces into the bag $\ob t \cb$
+
+\item \highlight{Iteration over an absent value} Consider the query
+
+\begin{lstlisting}
+FROM (*$a$*) AS (*$v$*) AT (*$p$*)
+\end{lstlisting}
+
+\noindent or the query
+
+\begin{lstlisting}
+FROM (*$a$*) AS (*$v$*)
+\end{lstlisting}
+
+\noindent whereas $a$ evaluates into an \gn{absent\_value} (i.e., either
+\MISSING or \NULL). In either case the \gn{absent\_value} $a$ coerces
+into the bag $\ob a \cb$. Then the semantics follow the normal case.
+
+\begin{example}
+Consider again the database of Example~\ref{xmpl:single-from-item-with-order}
+and the \from clause 
+
+\begin{lstlisting}
+FROM someOrderedTable[0].c AS x
+\end{lstlisting}
+
+The expression \gl{someOrderedTable[0].c} evaluates to \MISSING and,
+consequently, the \from clause outputs the binding tuple:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob \langle$ \lstinline|x:MISSING| $\rangle \cb$\\
+\end{tabbing}
+\end{example}
+
+\end{itemize}
+
+\subsection{Ranging over Attribute-Value Pairs}
+\label{sec:unpivot}
+
+The \gl{UNPIVOT} clause enables ranging over the attribute-value pairs of a
+tuple. The \from clause
+
+\begin{lstlisting}
+FROM UNPIVOT (*$t$*) AS (*$v$*) AT (*$a$*)
+\end{lstlisting}
+
+\noindent normally expects $t$ to be a tuple, with attribute/value pairs
+$a1: v1, \ldots, a_n:v_n$. It does not matter whether the tuple is ordered
+or unordered. The \from clause outputs the collection of binding tuples 
+
+\[
+    B^{out}_{\from} = \ob
+        \langle v:v_1, a:a_1 \rangle 
+        \ldots
+        \langle v:v_n, a:a_n\rangle
+    \cb 
+\]
+
+\begin{example}
+Consider the $\db$:
+
+\begin{lstlisting}
+(*$\db = \langle$*)
+    justATuple: {'amzn': 840.05, 'tdc': 31.06}
+(*$\rangle$*)
+\end{lstlisting}
+
+\noindent The \from clause:
+
+\begin{lstlisting}
+FROM UNPIVOT justATuple AS price AT symbol
+\end{lstlisting}
+
+\noindent outputs:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob $\=
+    $\langle $\lstinline|price: 840.05, symbol:'amzn'|$ \rangle$\\
+\>\>$\langle $\lstinline|price: 31.06, symbol:'tdc'|$ \rangle$\\
+\>\>$\cb$
+\end{tabbing}
+\end{example}
+
+\subsubsection{Mistyping Cases}
+\label{sec:unpivot-mistypings}
+
+In the following cases the expression in the \from \unpivot clause item has the
+``wrong" type, i.e., it is not a tuple. Under the type checking option, all of these cases raise an error
+and the query fails. Under the permissive option, the cases proceed as follows:
+
+\begin{lstlisting}
+FROM UNPIVOT (*$x$*) AS (*$v$*) AT (*$n$*)
+\end{lstlisting}
+
+\noindent whereas $x$ is not a tuple and is not \MISSING, is equivalent to:
+
+\begin{lstlisting}
+FROM UNPIVOT {'_1': (*$x$*)} AS (*$v$*) AT (*$n$*)
+\end{lstlisting}
+
+\noindent Effectively, a tuple is generated for the non-tuple value.  When $x$ is \MISSING
+then the above is equivalent to:
+
+\begin{lstlisting}
+FROM UNPIVOT {} AS (*$v$*) AT (*$n$*)
+\end{lstlisting}
+
+\noindent remember that a tuple cannot contain \MISSING. So the present case is equivalent to the empty tuple case.
+
+\subsection{Combining Multiple \from Items with Comma, \CROSSJOIN, or \JOIN}
+\label{sec:combining-multiple-item-join}
+
+The \from clause expressions:
+
+\begin{lstlisting}
+(*$l$*) , (*$r$*) (*$\eqv$*)
+(*$l$*) CROSS JOIN (*$r$*) (*$\eqv$*)
+(*$l$*) JOIN (*$r$*) ON TRUE (*$\eqv$*)
+\end{lstlisting}
+
+\noindent have the same semantics. They combine the bag of bindings produced
+from the \from item $l$ with the bag of binding tuples produced by the \from
+item $r$, whereas the expression $r$ may utilize variables defined by $l$. Again, the term ``the semantics of $l\ \CROSSJOIN\ r$'' is equivalent
+to the term ``the semantics of \from $l\ \CROSSJOIN\ r$''. In both cases, the
+semantics specify a bag of binding tuples.
+
+\paragraph{Associativity of $\CROSSJOIN$} We explain the $\CROSSJOIN$ and
+``$,$'' as if they are left associative binary operators, despite the fact that
+one can write more than two \from items without specifying grouping with
+parenthesis. Since the ``$,$'' and $\CROSSJOIN$ operators are associative, we
+may write (as is common in SQL):
+
+\begin{lstlisting}
+(*$f_1$*), (*$f_2$*), (*$f_3$*) (*$\eqv$*)
+(*$f_1$*) CROSS JOIN (*$f_2$*) CROSS JOIN (*$f_3$*) (*$\eqv$*)
+(*$f_1$*) LEFT JOIN (*$f_2$*) ON TRUE CROSS JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
+((*$f_1$*), (*$f_2$*)), (*$f_3$*) (*$\eqv$*)
+((*$f_1$*) CROSS JOIN (*$f_2$*)) CROSS JOIN (*$f_3$*) (*$\eqv$*)
+((*$f_1$*) LEFT JOIN (*$f_2$*) ON TRUE) CROSS JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
+\end{lstlisting}
+
+\paragraph{Semantics} Consider the following:
+
+\begin{lstlisting}
+(*$l$*) CROSS JOIN (*r*)
+\end{lstlisting}
+
+\noindent unlike SQL, the rhs $r$ of the expression may use variables defined by
+the lhs item $l$.  The result of this expression for a database environment
+$\db$ and variables environment $\env$ is the bag of binding tuples produced by
+the following pseudo-code. The pseudo-code uses the function $\evalf(\db, \env,
+e)$ that evaluates the expression $e$ within the environments $\db$ and $\env$,
+i.e., $\db, \env \vdash e \rightarrow \evalf(\db, \env, e)$.
+
+\begin{tabbing}
+\ \ \ \=for \=each binding tuple $b^l$ in $\evalf(\db, \env, l)$\\
+\>\>for \=each binding $b^r$ in $\evalf(\db, (\env \| b^l), r)$\\
+\>\>\>add $b^l \| b^r$ to the output bag
+\end{tabbing}
+
+In other words, the ``$l\ \CROSSJOIN\ r$'' outputs all binding tuples $b = b^l
+\| b^r$, where $b^l \in \evalf(\db, \env, l)$ and $b^r \in \evalf(\db, (\env \|
+b^l), r)$. The key extension to SQL is that $r$ is evaluated in the variables
+environment $\env \| b^l$, i.e., it can use the variables that were defined by
+$l$. The details of the variable scoping aspects are described in
+Section~\ref{sec:scoping-variables}.
+
+\begin{example}
+This example simply reminds the tuple calculus explanation of the
+\from SQL semantics. It does not yet endeavor into special aspects
+of PartiQL. Consider the following database, which is conventional SQL:
+
+\begin{lstlisting}
+(*$\db = \langle$*)
+    customers: [
+        {'id': 5, 'name': 'Joe'},
+        {'id': 7, 'name': 'Mary'}
+    ],
+    orders: [
+        {'custId': 7, 'productId': 101},
+        {'custId': 7, 'productId': 523}
+    ]
+(*$\rangle$*)
+\end{lstlisting}
+
+\noindent Then consider the following \from clause, which could be coming from
+a conventional SQL query:
+
+\begin{lstlisting}
+FROM customers AS c, orders AS o
+\end{lstlisting}
+
+\noindent Note that in PartiQL this could also be written using the \CROSSJOIN
+keyword, and presumably, one would put the sensible equality condition
+\gt{c.id=o.custId} in the \gl{WHERE} clause. At any rate, this \from clause
+outputs the bag of binding tuples:
+
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\from} = \ob $\=
+    $\langle$ \lstinline|c: {'id': 5, 'name': 'Joe'}, o: {'custId': 7, 'productId': 101}| $\rangle$\\
+\>\>$\langle$ \lstinline|c: {'id': 5, 'name': 'Joe'}, o: {'custId': 7, 'productId': 523}| $\rangle$\\
+\>\>$\langle$ \lstinline|c: {'id': 7, 'name': 'Mary'}, o: {'custId': 7, 'productId': 101}| $\rangle$\\
+\>\>$\langle$ \lstinline|c: {'id': 7, 'name': 'Mary'}, o: {'custId': 7, 'productId': 523}| $\rangle$\\
+\>\>$\cb$
+\end{tabbing}
+
+\end{example}
+
+\noindent Due to scoping rules that will be justified and elaborated in
+Section~\ref{sec:variable-scoping}, when the rhs of a $\CROSSJOIN$ is a path or a
+function that uses a variable named $n$, such variable must be referred as
+$\gt{@}n$. 
+
+\begin{example}
+Consider the database:
+
+\begin{lstlisting}
+(*$\db = \langle$*)
+    sensors: [
+        {'readings': [{'v': 1.3}, {'v': 2}]},
+        {'readings': [{'v': 0.7}, {'v': 0.8}, {'v': 0.9}]}
+    ]
+(*$\rangle$*)
+\end{lstlisting}
+
+\noindent Intuitively, the following \from clause unnests the tuples that are
+nested within the \gt{readings}.
+
+\begin{lstlisting}
+FROM sensors AS s, s.readings AS r
+\end{lstlisting}
+
+\begin{tabbing}
+\ \ \ $B^{out}_{\from} = \ob$\=
+  $\langle$ \lstinline|s: {'readings': [{'v': 1.3}, {'v': 2}]}, r: {v:1.3}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v': 1.3}, {'v': 2}]}, r: {v:2}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v': 0.7}, {'v': 0.8}, {'v': 0.9}]}, r: {'v':0.7}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v': 0.7}, {'v': 0.8}, {'v': 0.9}]}, r: {'v':0.8}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v': 0.7}, {'v': 0.8}, {'v': 0.9}]}, r: {'v':0.9}| $\rangle$,\\
+\>$\cb$
+\end{tabbing}
+\end{example}
+
+\subsection{Combining Multiple \from Items with \LEFTJOIN}
+\label{sec:combining-multiple-item-leftjoin}
+
+The \from clause expression:
+
+\begin{lstlisting}
+(*$l$*) LEFT CROSS JOIN (*$r$*) (*$\eqv$*)
+(*$l$*) LEFT JOIN (*$r$*) ON TRUE
+\end{lstlisting}
+
+\noindent replicates SQL's \gl{LEFT JOIN} functionality and, in addition, it
+also works for the case where the lhs of $r$ uses variables defined from $l$.
+
+\yannis{OS: Do you really mean to make the CROSS necessary in the absence of ON?}
+
+\almann{Yes, there is a parser problem if we don't, this was raised by Redshift
+a while ago.}
+
+Let's assume that the variables defined by $r$ are $v^r_1, \ldots, v^r_n$. The
+result of evaluating $l\ \LEFTCJOIN\ r$ in environments $\db$ and $\env$ is the
+bag of binding tuples produced by the following pseudocode, which also uses the
+$\evalf$ function (See Section~\ref{sec:combining-multiple-item-join}). 
+
+\begin{tabbing}
+\ \ \ \=for \=each binding $b^l$ in $\evalf(\db, \env, l)$\\
+\>\>$B^r \leftarrow \evalf(\db, (\env \| b^l), r)$\\
+\>\>if \=$B^r$ is the empty bag\\
+\>\>\>add $b^l \| \langle v^r_1:\NULL \ldots v^r_n:\NULL \rangle$ to the output bag \\
+\>\>else\\
+\>\>\>for \=each binding $b^r$ in $B^r$\\
+\>\>\>\>add $b^l \| b^r$ to the output bag
+\end{tabbing}
+
+\begin{example}
+Consider the database:
+
+\begin{lstlisting}
+(*$\db = \langle$*)
+    sensors: [
+        {'readings': [{'v':1.3}, {'v':2}]}
+        {'readings': [{'v':0.7}, {'v':0.8}, {'v':0.9}]},
+        {'readings': []}
+      ]
+(*$\rangle$*)
+\end{lstlisting}
+
+\noindent Notice that the value of the last tuple's \gt{readings} attribute is the empty
+array. The following \from clause unnests the tuples that are nested within
+the \gt{readings} but will also keep around the tuple with the empty
+\gt{readings}. (See the last binding tuple.)
+
+\begin{lstlisting}
+FROM sensors AS s LEFT CROSS JOIN s.readings AS r
+\end{lstlisting}
+
+\begin{tabbing}
+\ \ \ $B^{out}_{\from} = \ob$\=
+  $\langle$ \lstinline|s: {'readings': [{'v':1.3}, {'v':2}]}, r: {'v':1.3}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v':1.3}, {'v':2}]}, r: {'v':2}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v':0.7}, {'v':0.8}, {'v':0.9}]}, r: {'v':0.7}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v':0.7}, {'v':0.8}, {'v':0.9}]}, r: {'v':0.8}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': [{'v':0.7}, {'v':0.8}, {'v':0.9}]}, r: {'v':0.9}| $\rangle$,\\
+\>$\langle$ \lstinline|s: {'readings': []}, r: NULL| $\rangle$,\\
+\>$\cb$
+\end{tabbing}
+\end{example}
+
+\subsection{Combining Multiple \from Items with \FULLJOIN}
+\label{sec:combining-multiple-item-full-outerjoin}
+
+The \from clause expression:
+
+\begin{lstlisting}
+(*$l$*) FULL JOIN (*$r$*) ON *$c$*
+\end{lstlisting}
+
+\noindent replicates SQL's \gl{FULL JOIN} functionality. It
+assumes that (alike SQL) the lhs of $r$ does not use variables defined from $l$. 
+Thus, we do not discuss further.
+
+\subsection{Expanding \JOIN and \LEFTJOIN with \on}
+\label{sec:rewriting-on}
+
+In compliance to SQL, the \JOIN and \LEFTJOIN have an optional \on
+clause. The semantics of \gl{ON} can be explained as syntactic sugar over the core
+PartiQL. They can also be explained by a simple extension of the semantics of
+Sections~\ref{sec:combining-multiple-item-join},
+~\ref{sec:combining-multiple-item-leftjoin}, and
+~\ref{sec:combining-multiple-item-full-outerjoin}. The semantics of:
+
+\begin{lstlisting}
+(*$l$*) JOIN (*$r$*) ON (*$c$*)
+\end{lstlisting}
+
+\noindent are the following modification of the pseudocode of
+Section~\ref{sec:combining-multiple-item-join}. The modification is the
+inclusion of the underlined line.
+
+\begin{tabbing}
+for \=each binding $b^l$ in $\evalf(\db, \env, l)$\\
+\>for \=each binding $b^r$ in $\evalf(\db, (\env \| b^l), r)$\\
+\>\>\underline{if $\evalf(\db, (\env \| b^l \| b^r), c)$ is true}\\
+\>\>\ \ \ add $b^l \| b^r$ to the output bag
+\end{tabbing}
+
+\noindent The semantics of:
+
+\begin{lstlisting}
+(*$l$*) LEFT JOIN (*$r$*) ON (*$c$*)
+\end{lstlisting}
+
+\noindent are the following modification of the pseudocode of
+Section~\ref{sec:combining-multiple-item-leftjoin}. In essence, the \LEFTJOIN
+\on outputs a tuple padded with \NULL whenever there is no binding of $r$
+that satisfies the condition $c$.
+
+\begin{tabbing}
+for \=each binding $b^l$ in $\evalf(\db, \env, l)$\\
+\>$B^r \leftarrow \evalf(\db, (\env \| b^l), r)$\\
+\>$Q^r \leftarrow \ob \cb$\\
+\>for \=each binding $b^r$ in $B^r$\\
+\>\>if \=$\evalf(\db, (\env \| b^l \| b^r), c)$ is true\\
+\>\>\>add $b^r$ in $Q^r$\\
+\>if \=$Q^r$ is the empty bag\\
+\>\>add $b^l \| \langle v^r_1:\NULL \ldots v^r_n:\NULL\rangle$ to the output bag \\
+\>else\\
+\>\>for \=each binding $b^r$ in $Q^r$\\
+\>\>\>add $b^l \| b^r$ to the output bag
+\end{tabbing}
+
+\subsection{SQL's \gl{LATERAL}}
+\label{sec:lateral}
+
+SQL 2003 used the \gl{LATERAL} keyword to correlate \from clause items. In
+the interest of compatibility with SQL, PartiQL also allows the use of the
+keyword \gl{LATERAL}, though it does not do anything more than the comma itself
+would do. That is ``$l\ \gl{, LATERAL}\ r$'' is equivalent to ``$l\ \gl{,}\
+r$''.
+

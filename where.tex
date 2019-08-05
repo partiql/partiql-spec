@@ -1,0 +1,37 @@
+\section{\gt{WHERE} clause}
+\label{sec:where}
+ 
+The \gl{WHERE} clause inputs the bindings that have been produced from the
+\gl{FROM} clause and outputs the ones that satisfy its condition.
+
+The boolean predicates follow SQL's 3-valued logic. Recall, PartiQL has two
+kinds of absent values: \gl{NULL} and \gl{MISSING}. As far as the boolean
+connectives and \gl{IS NULL} are concerned a \gl{NULL} input and a \gl{MISSING}
+input behave identically. For example, \gl{MISSING AND TRUE} is equivalent to
+\gl{NULL AND TRUE}: they both result into \gl{NULL}.
+
+For the semantics of equality and of other functions, see
+Section~\ref{sec:preds-and-fns}.
+
+Alike SQL, when the expression of the \gt{WHERE} clause expression evaluates to
+an absent value or a value that is not a Boolean, PartiQL eliminates the
+corresponding binding. 
+
+\begin{example} The result of
+\begin{tabbing}
+\gt{SELECT VALUES v.a}\\
+\gt{FROM [\{'a':1, 'b':true\}, \{'a':2, 'b':null\}, \{'a':3\}] v}\\
+\gt{WHERE v.b}
+\end{tabbing}
+\noindent is \texttt{\ob 1 \cb}.
+\end{example}
+
+The predicate \gl{IS MISSING} allows distinguishing between \gt{NULL} and
+\gt{MISSING}: \gt{NULL IS MISSING} results to false; \gt{MISSING IS MISSING}
+results to true.
+
+\eat{
+\subsection{Semantics of \gl{IN}}
+\label{sec:in}
+\yannis{TO DO.}
+}

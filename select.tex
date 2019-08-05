@@ -1,0 +1,501 @@
+\section{\select\ clauses}
+\label{sec:select-values}
+
+Core PartiQL SFW queries have a \gl{SELECT VALUE} clause (in lieu of SQL's
+\gl{SELECT} clause) that can create outputs that are collections of anything
+(e.g., collections of tuples, collections of scalars, collections of arrays,
+collections of mixed type elements, etc.) Section~\ref{sec:select-values-core}
+describes the \gl{SELECT VALUE} clause.
+
+SQL's well-known \gl{SELECT} clause can be used as a mere syntactic sugar over
+\gl{SELECT VALUE}, when we consider the top-level query. In particular,
+Section~\ref{sec:sql-select} shows that SQL's \gl{SELECT} is the special case
+where the \gl{SELECT VALUE} produces collections of tuples. Furthermore, when
+\select is used as a subquery it is coerced into a scalar or a tuple, in the
+ways that SQL coerces the results of subqueries.
+
+Section~\ref{sec:pivot} describes \gl{PIVOT}, which can be used
+instead of \gl{SELECT VALUE}. \gl{PIVOT} creates a tuple, with a data
+dependent number of attribute/value pairs, where not only the values but the
+attributes as well could be originating from the data found in the binding
+tuples.
+
+\subsection{\select \values core clause}
+\label{sec:select-values-core}
+The \select \values clause inputs a bag of binding tuples or an array of
+binding tuples (from the other clauses of the SQL query) and outputs a bag or an
+array. For example, if the query only has \select \values, \from, and
+\gl{WHERE} clauses, then the bindings that are output by the \gl{WHERE} clause
+are input by the \select \values clause. Unlike SQL, the output of a \select
+\values clause need not be a bag or array of tuples. It is a bag or array of
+any kind of PartiQL values. For example, it may be a bag of integers, or a
+bag of arrays, etc. Indeed, the values may be heterogeneous. For example, the
+output may even be a bag that has both integers and arrays. 
+
+The core PartiQL clause:
+
+\begin{lstlisting}
+SELECT VALUE (*$e$*)
+\end{lstlisting}
+
+\noindent inputs a bag or an array (depending on the presence or non-presence of
+\gl{ORDER BY}) of binding tuples and outputs respectively a bag or an array of
+values. Let $\db$ and $\env$ be the environments of the SFW query. For each
+input binding tuple $b \in B^{in}_{\gl{SELECT}}$, \gl{SELECT VALUE} outputs a
+value $v$, where $\db, (\env \| b) \vdash e \rightarrow v$. Notice that PartiQL
+expressions $e$ (Figure~\ref{figure:query:bnf} \linequery{expression query}) will typically be
+tuple or array or bag constructors \linequery{constructors}, 
+which enable the construction of respective results.
+In general $e$ can be any expression.
+
+\begin{example}
+This example illustrates a \gl{SELECT VALUE} that creates a collection of
+numbers.
+
+\begin{lstlisting}
+SELECT VALUE 2*x.a
+FROM [{'a':1}, {'a':2}, {'a':3}] as x
+\end{lstlisting}
+
+The result is \lstinline|<<2, 4, 6>>|.
+\end{example}
+
+\subsubsection{Tuple constructors} 
+\label{sec:tuple-constructor}
+
+A \textit{tuple constructor} is of the form
+
+\begin{lstlisting}
+{(*$a_1$*):(*$e_1$*), (*$\ldots$*), (*$a_n$*):(*$e_n$*)}
+\end{lstlisting}
+
+\noindent whereas $a_1 \ldots a_n, e_1 \ldots e_n$ are expressions, potentially
+being themselves constructors.
+
+\begin{example}
+The query:
+
+\begin{lstlisting}
+SELECT VALUE {'a':v.a, 'b':v.b}
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS v
+\end{lstlisting}
+
+\noindent results into \lstinline|<<{'a':1, 'b':1}, {'a':2, 'b':2}>>|.
+\end{example}
+
+\paragraph{Treatment of mistyped attribute names}
+
+It is possible that an expression $a_i$ that computes an attribute name results
+into a non-string, i.e., a value that is not a legitimate attribute name. In
+such cases, under the permissive mode the attribute-value pair will be
+dismissed. Under the type checking mode the query will fail.
+
+\begin{example}
+In the permissive mode, the query:
+
+\begin{lstlisting}
+SELECT VALUE {v.a: v.b}
+FROM [{'a':'legit', 'b':1}, {'a':400, 'b':2}] AS v
+\end{lstlisting}
+
+\noindent results into \lstinline|<<{'legit':1}, {}>>|. Notice that the attempt
+to create an attribute named \gt{400} failed, thus leading to a tuple with no
+attributes.
+\end{example}
+
+\paragraph{Treatment of duplicate attribute names}
+
+It is possible that the constructed tuples contain twice or more the same
+attribute name. 
+
+\begin{example}
+The query:
+
+\begin{lstlisting}
+SELECT VALUE {v.a: v.b,  v.c: v.d}
+FROM [{'a':'same', 'b':1, 'c':'same', 'd':2}] AS v
+\end{lstlisting}
+
+\noindent results into \lstinline|<<{'same':1, 'same':2}>>|. 
+Recall, a \texttt{same} path will only pick one of the two values. 
+\end{example}
+
+\subsubsection{Array Constructors} 
+\label{sec:array-constructor}
+
+An array constructor has the form:
+
+\begin{lstlisting}
+[(*$e_0$*), (*$\ldots$*), (*$e_{n-1}$*)]
+\end{lstlisting}
+
+\noindent where $e_1 \ldots e_{n-1}$ are expressions. Notice that the arrays
+produced by such constructor will always have size $n$.
+
+\begin{example}
+The query:
+
+\begin{lstlisting}
+SELECT VALUE [v.a, v.b]
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS V
+\end{lstlisting}
+
+\noindent results into \lstinline|<<[1, 1], [2, 2]>>| 
+\end{example}
+
+In the interest of compatibility to SQL, PartiQL also allows array constructors
+to be denoted with parentheses instead of brackets, when there are at least two
+elements in the array, i.e., $n \geq 2$:
+
+\begin{lstlisting}
+((*$e_0$*), (*$\ldots$*), (*$e_{n-1}$*))
+\end{lstlisting}
+
+See Section~\ref{sec:select-coercion-array} for uses of this feature in SQL
+compatibility.
+
+\subsubsection{Bag Constructors}
+A bag constructor has the form:
+
+\begin{lstlisting}
+<<(*$e_0$*), (*$\ldots$*), (*$e_{n-1}$*)>>
+\end{lstlisting}
+
+\noindent where $e_1 \ldots e_n$ are expressions.
+
+\begin{example}
+The query:
+
+\begin{lstlisting}
+SELECT VALUE <<v.a, v.b>>
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS v
+\end{lstlisting}
+
+\noindent results into \lstinline|<< <<1, 1>>, <<2, 2>> >>|. 
+\end{example}
+
+\subsubsection{Treatment of \MISSING in \gl{SELECT VALUE}}
+\label{sec:treatment-missing-select-value}
+
+\MISSING may behave differently from \NULL and differently from scalars.
+The following itemizes the behavior of \MISSING in a number of cases:
+
+\begin{itemize}
+\item \textbf{when constructing tuples} Whenever during tuple construction an
+attribute value evaluates to \MISSING, then the particular attribute/value is
+omitted from the constructed tuple.
+
+\begin{example} The query
+
+\begin{lstlisting}
+SELECT VALUE {'a':v.a, 'b':v.b}
+FROM [{'a':1, 'b':1}, {'a':2}]
+\end{lstlisting}
+
+\noindent results into \lstinline|<<{'a':1, 'b':1}, {'a':2}>>|.
+\end{example}
+
+\item \textbf{when constructing arrays} Whenever an array element evaluates to
+\MISSING, the resulting array will contain a \MISSING.
+
+\begin{example}
+The query
+
+\begin{lstlisting}
+SELECT VALUE [v.a, v.b]
+FROM [{'a':1, 'b':1}, {'a':2}]
+\end{lstlisting}
+
+\noindent results into \lstinline|<<[1, 1], [2, MISSING]>>|.
+\end{example}
+
+Upon output serialization the \MISSING will convert to the symbol that the
+serialization has chosen for serializing \MISSING.
+
+\item \textbf{when constructing bags} Whenever an element of a bag evaluates to
+\MISSING, the resulting bag will contain a corresponding \MISSING. 
+
+\begin{example}
+The query
+
+\begin{lstlisting}
+SELECT VALUE v.b
+FROM [{'a':1, 'b':1}, {'a':2}]
+\end{lstlisting}
+
+\noindent results into \lstinline|<<1, MISSING>>| because \lstinline|{'a':2}.b|
+evaluated to \MISSING.
+\end{example}
+
+\begin{example}
+The query
+
+\begin{lstlisting}
+SELECT VALUE <<v.a, v.b>>
+FROM [{'a':1, 'b':1}, {'a':2}]
+\end{lstlisting}
+
+\noindent results into \lstinline|<< <<1, 1>>, <<2, MISSING>> >>|.
+\end{example}
+\end{itemize}
+
+\subsection{Pivoting a Collection into a Variable-Width Tuple}
+\label{sec:pivot}
+The \gl{PIVOT} clause may appear in lieu of \gl{SELECT VALUE}. The
+\gl{PIVOT} clause outputs a tuple; in contrast, a \gl{SELECT VALUE}
+outputs a collection (bag or array). The syntax is
+
+\begin{lstlisting}
+PIVOT (*$e_v$*) AT (*$e_a$*) (*$c$*)
+\end{lstlisting}
+
+\noindent where the other clauses, $c$, are the usual \gl{FROM}, \gl{WHERE},
+etc. The semantics are similar to \gl{SELECT VALUE}. Let $\db$ and $\env$ be the
+environments of the SFW query. For each input binding tuple $b \in
+B^{in}_{\gl{PIVOT}}$, \gl{PIVOT} outputs an attribute name/value pair $a, v$,
+where the name $a$ is the result of $e_a$ and the value $v$ is the result of
+$e_v$. (Technically, $\db, (\env \| b) \vdash e_a \mapsto a$ and $\db, (\env \|
+b) \vdash e_v \mapsto v$.) Regardless of whether $B^{in}_{\gl{PIVOT}}$ is a bag
+(i.e., the SFW query did not have an \gl{ORDER BY}) or an array (i.e., the SFW
+query had an \gl{ORDER BY}), the output tuple is unordered. Schema may be
+applied extantly to obtain an ordered tuple.
+
+\begin{example}
+The query:
+
+\begin{lstlisting}
+PIVOT t.price AT t.symbol
+FROM [{'symbol':'tdc', 'price': 31.52}, {'symbol': 'amzn', 'price': 840.05}] AS t
+\end{lstlisting}
+
+\noindent results into the tuple \lstinline|{'tdc':31.52, 'amzn':840.05}|.
+\end{example}
+
+The treatment of \MISSING is same to the treatment of \MISSING by \select
+\values (Section~ref{{sec:tuple-constructor}}). Namely, whenever an attribute
+name or attribute value evaluates to \MISSING, the corresponding attribute
+name/value pair will not appear in the tuple.
+
+\begin{example}
+The query
+
+\begin{lstlisting}
+PIVOT t.price AT t.symbol
+FROM [{'symbol':25, 'price':31.52}, {'symbol':'amzn', 'price':840.05}] AS t
+\end{lstlisting}
+
+\noindent results into the tuple \lstinline|{'amzn': 840.05}| since
+\lstinline|25| is not a legitimate attribute name.
+\end{example}
+
+\subsection{SQL \select list as Syntactic Sugar of \select \values}
+\label{sec:sql-select}
+
+\subsubsection{\select Without \gl{*}}
+\label{sec:select-without-star}
+
+The SQL syntax:
+
+\begin{lstlisting}
+SELECT (*$e_1$*) AS (*$a_1$*), (*$\ldots$*), (*$e_n$*) AS (*$a_n$*)
+\end{lstlisting}
+
+\noindent is syntactic sugar for:
+
+\begin{lstlisting}
+SELECT VALUE {(*$a'_1$*):(*$e_1$*), (*$\ldots$*), (*$a'_n$*):(*$e_n$*)}
+\end{lstlisting}    
+
+\noindent whereas if the attribute name $a_i$ is written as an identifier (e.g.,
+\lstinline|a| or \lstinline|"a"|) it is replaced by a single-quoted form $a'_i$
+(e.g., \lstinline|'a'|).
+
+When the expression $e_i$ is of the form $e_i'\gl{.}n$ (i.e. a path that
+navigates into tuple attribute $n$), PartiQL follows SQL in allowing the
+attribute name to be optional. In this case, 
+
+\begin{lstlisting}
+SELECT (*$\ldots e_i$*).(*$n \ldots$*)
+\end{lstlisting}
+
+\noindent is equivalent to 
+
+\begin{lstlisting}
+SELECT (*$\ldots e_i$*).(*$n \ldots$*) AS (*$n$*)
+\end{lstlisting}
+
+In the case that the expression $e_i$ is not of the form $e_i'\gl{.}n$ the
+clause:
+
+\begin{lstlisting}
+SELECT (*$\ldots e_i$ \ldots*)
+\end{lstlisting}
+
+\noindent is equivalent to 
+
+\begin{lstlisting}
+SELECT (*$\ldots e_i$*) AS (*$a_i \ldots$*)
+\end{lstlisting}
+
+\noindent where $a_i$ is a system-generated name. SQL and PartiQL do not
+provide a standard convention. 
+
+\subsubsection{SQL's \gl{*}} 
+\label{sec:sql-star}
+
+Consider a query whose \from\ defines a variable $x$ that has no schema and the
+\select\ clause includes at least one $x.\gl{*}$. Let us first consider the
+simpler case where the \gl{SELECT} clause is a single item $x$\gl{.*}. Then the
+clause
+
+\begin{lstlisting}
+SELECT (*$x$*).*
+\end{lstlisting}
+
+\noindent reduces to
+
+\begin{lstlisting}
+SELECT VALUE CASE WHEN NOT (*$x$*) IS TUPLE THEN {'_1': (*$x$*)} ELSE (*$x$*) END 
+\end{lstlisting}
+
+\noindent Notice that PartiQL extends the \gl{.*} to also operate on $x$
+bindings that are not tuples. These are converted to singleton tuples with a
+synthetic name.
+
+\begin{example}
+The query
+
+\begin{lstlisting}
+SELECT x.*
+FROM [{'a':1, 'b':1}, {'a':2}, 'foo'] AS x
+\end{lstlisting}
+
+\noindent results into \lstinline|<< {'a':1, 'b':1}, {'a':2}, {'_1':'foo'} >>|.
+Notice that the input has a non-tuple that was converted to a tuple with a
+synthetic attribute name \lstinline|_1|, this is because the result of a
+traditional \gl{SELECT} is always a container of tuples.
+\end{example}
+
+We generalize the semantics of a \gl{SELECT} list, where at least one of the
+items is a \gl{.*} item, we use the function \tupleunion. When all of $t_1, t_2,
+\ldots, t_n$ are tuples $\tupleunion(t_1, t_2,\ldots,t_n)$ outputs a tuple $t$
+such that for each attribute name/value pair $n:v$ of any $t_i$, the tuple $t$
+has a respective $n:v$. Notice the possibility that the output $t$ has duplicate
+attribute names because either (i) two different inputs $t_i$ and $t_j$ had the
+same attribute name, or (ii) because an input $t_i$ already had a duplicate
+attribute name. 
+
+Using \tupleunion, we rewrite the \select clause as illustrated by the following
+example, which has two \gl{.*} items and one conventional item. The
+generalization to more items, of either kind should be obvious. Notice that if
+$v_1$ (resp. $v_3$) is bound to a non-tuple value $v$, then it is treated as if
+it were the tuple \gl{\{'\_1':$v_1$\}} (resp. \gl{\{'\_2':$v_3$\}}. 
+
+\begin{lstlisting}
+SELECT (*$v_1$*).*, (*$e_2$*) AS (*$a$*), (*$v_3$*).*
+\end{lstlisting}
+
+\noindent is equivalent to
+
+\begin{lstlisting}
+SELECT VALUE TUPLEUNION(
+    CASE WHEN (*$v_1$*) IS TUPLE THEN (*$v_1$*) ELSE {'_1': (*$v_1$*)} END,
+    {'(*$a$*)':(*$e_2$*)},
+    CASE WHEN (*$v_3$*) IS TUPLE THEN (*$v_3$*) ELSE {'_2': (*$v_3$*)} END
+)
+\end{lstlisting}
+
+Notice that the attribute names \gl{\_1}, \gl{\_2} have been invented.
+
+
+\subsection{Examples with combinations of multiple features}
+
+\begin{example} 
+\label{xmpl:nesting-readings}
+A SFW subquery may appear in the \gl{SELECT VALUE} clause of a query, enabling
+the creation of nested results.  
+
+Consider the database
+
+\begin{tabbing}
+\ \ \ \=\gt{sensors : [}\=\gt{\{'sensor':1\},}\\
+\>\>\gt{\{'sensor':2\}}\\
+\>\>\gt{]}\\
+\ \ \ \=\gt{logs: [}\=\gt{\{'sensor':1, 'co':0.4\},}\\
+\>\>\gt{\{'sensor':1, 'co':0.2\},}\\
+\>\>\gt{\{'sensor':2, 'co':0.3\}}\\
+\>\>\gt{]}
+\end{tabbing}
+
+The query
+
+\begin{tabbing}
+\ \ \ \=\gt{SELECT VALUE \{}\=\gt{'sensor': s.sensor,}\\
+\>\>\gt{'readings': (}\=\gt{SELECT VALUE l.co}\\
+\>\>\>\gt{FROM logs AS l}\\         
+\>\>\>\gt{WHERE l.sensor = s.sensor}\\ 
+\>\>\>\gt{)}\\
+\>\>\!\!\gt{\}}\\
+\>\gt{FROM sensors AS s}
+\end{tabbing}
+
+\noindent results into
+
+\begin{tabbing}
+\ \ \ \=\gt{\ob }\=\gt{\{'sensor':1, 'readings':\ob 0.4, 0.2 \cb\},}\\
+\>\>\gt{\{'sensor':2, 'readings':\ob 0.3 \cb\}}\\
+\>\gt{\cb}
+\end{tabbing}
+
+\noindent Notice that each tuple of the result has a nested array, which has
+been created by the inner \gl{SELECT VALUE}. 
+
+The query could also have been written using \gl{SELECT} (instead of \gl{SELECT
+VALUE}) for the outer query, as follows:
+
+\begin{tabbing}
+\ \ \ \=\gt{SELECT }\=\gt{s.sensor AS sensor,}\\
+\>\>\gt{(}\=\gt{SELECT VALUE l.co}\\
+\>\>\>\gt{FROM logs AS l}\\         
+\>\>\>\gt{WHERE l.sensor = s.sensor}\\ 
+\>\>\>\gt{) AS readings}\\
+\>\gt{FROM sensors AS s}
+\end{tabbing}
+
+Furthermore, the \gt{AS sensor} could be ommitted (as in SQL).
+\end{example}
+
+\begin{example}
+This example shows how the combined action of \gl{UNPIVOT} and \gl{PIVOT}
+enables to analyze the attribute names. Consider the following database that has
+a sequence of measurements of various gases.
+
+\begin{tabbing}
+\ \ \ \gt{sensors : [}\=\gt{\{'no2':0.6, 'co':0.7, 'co2':0.5\},}\\
+\>\gt{\{'no2':0.5, 'co':0.4, 'co2':1.3\}}\\
+\>\gt{]}
+\end{tabbing}
+
+The following query keeps only the carbon oxides.
+\footnote{The query author is pretty weak in chemistry and cannot enumerate the
+carbon oxides explicitly in her query.}
+
+\begin{tabbing}
+\ \ \ \=\gt{SELECT VALUE (}\=\gt{PIVOT v AT g}\\
+\>\>\gt{FROM UNPIVOT r AS v AT g}\\
+\>\>\gt{WHERE g LIKE 'co\%')}\\
+\>\gt{FROM sensors AS r}
+\end{tabbing}
+
+The result is 
+
+\begin{tabbing}
+\ \ \ \gt{[}\=\gt{\{'co':0.7, 'co2':0.5\},}\\
+\>\gt{\{'co':0.4, 'co2':1.3\}}\\
+\>\gt{]}
+\end{tabbing}
+
+Intuitively, the \gl{UNPIVOT} turns every instance of the tuple \gt{t} into a
+collection. The \gl{WHERE} filters the collections. The \gl{PIVOT} pivots the
+filtered collections back into tuples.
+\end{example}

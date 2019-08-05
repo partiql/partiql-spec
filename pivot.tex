@@ -1,0 +1,33 @@
+\section{\pivot Clause Semantics}
+\label{sec:pivot}
+The \pivot clause inputs a bag of binding tuples or an array of binding tuples.
+Semantically, it is similar to \select \values but whereas the latter creates a
+collection of values, \pivot constructs a tuple where the each input binding is
+evaluated to an attribute value pair in the tuple.
+
+The clause:
+
+\begin{lstlisting}
+PIVOT (*$v$*) AT (*$a$*)
+\end{lstlisting}
+
+\noindent inputs a bag or an array of binding tuples and outputs a single tuple
+where each evaluation of $v$ and $a$ generate an attribute in the tuple.
+
+\begin{example}
+This example illustrates a \pivot that creates a tuple from a collection
+of tuples.
+
+\begin{lstlisting}
+PIVOT x.v AT x.a
+FROM << {'a': 'first', 'v': 'john'}, {'a': 'last', 'v': 'doe'} >>
+\end{lstlisting}
+
+\noindent The result is \lstinline|{'first':'john', 'last':'doe'}|.
+\end{example}
+
+The expression $a$ is expected to evaluate into a string value.  In strict mode,
+it is an error if this evaluates to a non-string value.  In permissive mode, the
+attribute is considered \MISSING and does not appear in the output.  The
+expression $v$ can be any PartiQL value, but if it is \MISSING it will not be
+generated in the resulting tuple.

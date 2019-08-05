@@ -1,0 +1,563 @@
+\section{\gl{GROUP BY} clause}
+\label{section:group-by} 
+The PartiQL \gl{GROUP BY} clause expands SQL's grouping. Unlike SQL, the PartiQL
+\gl{GROUP BY} can be thought of as a standalone operator that inputs a
+collection of binding tuples and outputs a collection of binding tuples. 
+
+As is typical in many clauses, the semantics proceed in two steps:
+\begin{itemize}
+\item Section~\ref{sec:group-variable} explains the core PartiQL \gl{GROUP BY}
+structure.
+\item Section~\ref{sec:sql-groupby} shows that SQL's \gl{GROUP BY} can be
+explained over the core \gl{GROUP BY}.
+\end{itemize}
+
+\subsection{PartiQL \gl{GROUP BY} core: Grouping into a Group Variable}
+The \gl{GROUP BY} clause \linequery{group by} 
+\label{sec:group-variable}
+
+%
+\[ \gl{GROUP BY}\ e_1\ \gl{AS}\ x_1\ \gl{,} \ldots \gl{,}\ e_m\ \gl{AS}\ x_m\ \gl{GROUP AS}\ g\] 
+%
+\noindent creates a group. Each $e_i$ is a \textit{grouping expression}, each
+$x_i$ is a \textit{grouping variable}
+\footnote{Grouping variables is an extension of SQL by PartiQL, which
+interestingly simplifies dramatically the explanation of SQL semantics, as it
+enables the \gl{GROUP BY} to be seen as a standalone function.}
+and $g$ is the \textit{group variable}. 
+
+\almann{TODO define the semantics when the group expression is a constant
+positive integer--specifically the relation to the \gl{SELECT} projection
+items.
+Yannis: Interestingly, this is a deprecated feature of the SQL standard as of 1998.
+Unfortunately, Postgres carried the torch but I think that all we have to do 
+is to say ``avoid using positive constants" as many implementations 
+use them to mean the first column of SELECT. 
+Recall, this was Don's March feedback, that
+we cannot hold Couchbase for SQL incompatibility on what is not SQL :) }
+
+As in SQL, the bag of input binding tuples $B^{in}_{\gl{GROUP}}$ is partitioned
+into the minimal number of equivalence groups $B_1 \ldots B_n$, such that any
+two binding tuples $b, b' \in B^{in}_{\gl{GROUP}}$ are in the same equivalence
+group if and only if every grouping expression $e_i$ evaluates to equivalent
+values $v_i$ (when evaluated on $b$) and $v'_i$ (when evaluated on $b'$). More
+precisely, as in SQL, there is an equivalence function \gl{eqg}, used by the
+\gl{GROUP BY} to determine if two values $v_i$ and $v_i'$ are equivalent for
+grouping purposes. The equivalence function $\gl{eqg(}v_i, v'_i\gl{)}$ returns
+only true or false; true meaning that the values are equivalent for grouping
+purposes. See Section~\ref{sec:eqg} for specifics of \gl{eqg}. If a grouping
+expression evaluates to \MISSING, it is first coerced into \NULL,
+thus bringing \MISSING and \NULL in the same group.
+
+Unlike SQL, for each group $B_j ~ (1 \leq j \leq n)$, the \gl{GROUP BY} clause
+outputs a binding tuple $b_j = \langle x_1 : v_1, ~ \ldots, ~ x_m : v_m, ~ g :
+B_j \rangle$ that has the full group $B_j$. Notice:
+\begin{enumerate}
+\item the binding tuples that appear in the $g$ collection have one attribute
+for each of the variables defined in the \gl{FROM} clause,
+since these binding tuples come as-is from $B^{in}_{\gl{GROUP}}$.
+\item even if the bag $B^{in}_{\gl{GROUP}}$ is flat binding tuples, the output
+bag $B^{out}_{\gl{GROUP}}$ is not just flat binding tuples, since $g$ has nested
+binding tuples. Note, we have been explicitly denoting binding attributes
+with \MISSING values in the binding tuples. However, once these binding tuples
+become the tuples of the PartiQL data model, any binding attribute with 
+\MISSING value will not appear.
+\end{enumerate}
+
+\begin{example}
+\label{sec:grouping-readings}
+Consider again the \gt{logs} data of Example~\ref{xmpl:nesting-readings} and
+assume that we want to group the \gt{co} readings by sensor. The following query
+solves the problem using only core features. 
+
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{}\=\gl{'sensor': sensor,}\\
+\>\>\gl{'readings': (SELECT VALUE v.l.co FROM g AS v) \}}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{GROUP BY l.sensor AS sensor GROUP AS g}
+\end{tabbing}
+The \gl{GROUP BY} outputs the collection of binding tuples
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\gl{GROUP}} = B^{in}_{\gl{SELECT}} =$\=\gt{\ob }\=\gt{$\langle$ sensor:1, g: \ob}\=\gt{$\langle$l:\{'sensor':1, 'co':0.4\}$\rangle$,}\\ 
+\>\>\>\>\gt{$\langle$l:\{'sensor':1, 'co':0.2\}$\rangle$}\\
+\>\>\>\>\gt{\cb $\rangle$,}\\
+\>\>\>\gt{$\langle$ sensor:2, g:\ob $\langle$l:\{'sensor':2, 'co':0.3\}$\rangle$ \cb $\rangle$}\\
+\>\>\gt{\cb}
+\end{tabbing}
+
+Notice that the collection \gt{g} has tuples with a single attribute \gt{l},
+since this is the single variable of the \gl{FROM} clause in this example.
+
+Consequently the \gl{SELECT} clause outputs
+\begin{tabbing}
+\ \ \ \=\gt{\ob }\=\gt{\{'sensor':1, 'readings':\ob 0.4, 0.2\cb\},}\\
+\>\>\gt{\{'sensor':2, 'readings':\ob 0.3 \cb\}}\\
+\>\gt{\cb}
+\end{tabbing}
+Notice that the query of Example~\ref{xmpl:nesting-readings} and the query of
+the present example do not always produce the same result. For example, if there
+were no readings for a sensor, the query of Example~\ref{xmpl:nesting-readings}
+would still have this sensor in the result (and its \gt{readings} would be
+empty). In contrast, the query of the present example will not have this sensor
+in the result.
+
+Here is a shorter equivalent query that uses PartiQL collection paths and SQL's
+aliases.
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{}\=\gl{'sensor': sensor,}\\
+\>\>\gl{'readings': g[*].l.co \}}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{GROUP BY l.sensor AS sensor GROUP AS g}
+\end{tabbing}
+\end{example}
+
+Notice, the output binding tuple provides the partitioned input binding tuples
+in the group variable $g$, which can be explicitly utilized in subsequent
+\gl{HAVING}, \gl{ORDER BY} and \gl{SELECT} clauses. Thus, an PartiQL query can
+perform complex computations on the groups, leading to results of any type (e.g.
+collections nested within collections). The explicit presence of groups in
+PartiQL, while more general than SQL, also leads to simpler semantics than those
+of SQL, since the \gl{GROUP BY} clause semantics are independent of the presence
+of subsequent functions in \gl{HAVING}, \gl{ORDER BY} and \gl{SELECT}.
+
+\begin{example}
+\label{xmpl:groupby-avg-count}
+
+The following PartiQL query counts and averages the readings of each sensor. It
+also refers to the \gt{logs} of Example~\ref{xmpl:nesting-readings}. The
+\gl{COLL\_COUNT} function is simply given the group variable and counts how many
+elements are in that collection.
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{}\=\gl{'sensor': sensor,}\\
+\>\>\gl{'avg': COLL\_AVG(SELECT VALUE v.l.co FROM g AS v), }\\
+\>\>\gl{'count': COLL\_COUNT(g) \}}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{GROUP BY l.sensor AS sensor GROUP AS g}
+\end{tabbing}
+\end{example}
+
+Notice, the aggregate functions \gl{COLL\_AVG} and \gl{COLL\_COUNT} (and for
+that matter, by convention, any function starting with \gl{COLL}) can be thought
+of as general-purpose functions. Generally, they do not have to be fed by the
+result of a grouping operation - unlike SQL's \gl{COUNT} and \gl{AVG} that are
+being fed exclusively from the results of grouping operations. (Furthermore, the
+SQL \gl{COUNT} and \gl{AVG} make use of SQL's syntactic sugar, where there is no
+explicit use of group variable, as explained in
+Section~\ref{sec:implicit-group-variable}.)
+
+\begin{example} 
+This is a legitimate PartiQL expression:
+\begin{tabbing} 
+\ \ \ \gl{COLL\_COUNT(}\gt{[5, \{a:2, b:3\}]}\gl{)}
+\end{tabbing}
+The result is \gt{2}, since the input to \gl{COLL\_COUNT} is an array with two
+elements. 
+\end{example}
+Similarly, it is fine to include in any clause an aggregate function fed by the
+result of a (sub)query.
+\begin{example}
+In the following expression \gl{COLL\_COUNT} inputs the result of a query
+\begin{tabbing}
+\ \ \ \gl{COLL\_COUNT(SELECT VALUE x FROM logs x WHERE x.sensor=1)}
+\end{tabbing}
+\end{example}
+
+\highlight{Remark} An efficient implementation will often avoid materializing
+the group variable. In many cases, like the ones of the above examples, the
+group can be streamed into the aggregate function.
+
+\highlight{Remark} The semantics of the \gl{SELECT} and \gl{HAVING} clauses do
+not need to be aware of the presence of \gl{GROUP BY} and treat differently (as
+SQL would do) these classes of functions: 
+\begin{itemize}
+\item scalar functions (e.g. \gl{+}) that input scalars and output scalars 
+\item SQL aggregation functions (e.g. \gl{SUM}) that input bags and output
+scalars
+\end{itemize}
+Indeed, \gl{HAVING} behaves identical to a \gl{WHERE}, once groups
+are already formulated earlier.
+
+The PartiQL approach provides two benefits: First, it leads to shorter, modular
+semantics. Second, it enables \gl{GROUPY} to address use cases that would
+otherwise need knowledge and non-trivial SQL programming of window functions.
+See Example~\ref{xmpl:windows-by-grouping}.
+
+\subsubsection{Equivalence function used by grouping; grouping of \NULL and \MISSING}
+\label{sec:eqg}
+
+The equivalence function \gl{eqg} extends SQL's respective function. In
+particular, it behaves as follows:
+\begin{itemize}
+\item $\gl{eqg}(\NULL, \NULL)$ is true, despite $\NULL=\NULL$ not being true.
+\item for any two non-null values $x$ and $y$, $\gl{eqg}(x,y)$ returns the same
+with $x=y$. As is the case generally for $=$, while SQL's $=$ will error when
+given incompatible types, while the PartiQL $=$ will return \gl{false}.
+\end{itemize}
+
+Notice that PartiQL will group together the \NULL and the \MISSING grouping
+expressions, since any grouping expression resulting to \MISSING has been
+coerced into \NULL before \gl{eqg} does comparisons for grouping.
+Example~\ref{xmpl:grouping-null-missing} shows the repercussions of coercing
+\NULL into \MISSING and also shows how to discriminate between \NULL and
+\MISSING, if so desired.
+
+\begin{example}
+\label{xmpl:grouping-null-missing}
+The query of Example~\ref{sec:grouping-readings} will group together any log
+readings where the \gl{sensor} attribute is either \NULL or is altogether
+\MISSING. For example, if \gl{logs} is
+\begin{tabbing}
+\gl{logs:}\=\gl{[ }\=\gl{\{'sensor': 1, 'co':0.4\},}\\
+\>\>\gl{\{'sensor': 2, 'co':0.3\},}\\
+\>\>\gl{\{'sensor': null, 'co':0.1\},}\\
+\>\>\gl{\{'sensor': 1, 'co':0.2\},}\\
+\>\>\gl{\{'co':0.5\}}\\
+\>\gl{]}
+\end{tabbing}
+\noindent then the \gl{GROUP BY} will output the collection of binding tuples
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\gl{GROUP}} = B^{in}_{\gl{SELECT}} =$\=\gt{\ob }\=\gt{$\langle$ sensor:1, g: \ob}\=\gt{$\langle$l:\{'sensor':1, 'co':0.4\}$\rangle$,}\\ 
+\>\>\>\>\gt{$\langle$l:\{'sensor':1, 'co':0.2\}$\rangle$}\\
+\>\>\>\>\gt{\cb $\rangle$,}\\
+\>\>\>\gt{$\langle$ sensor:2, g:\ob $\langle$l:\{'sensor':2, 'co':0.3\}$\rangle$ \cb $\rangle$,}\\
+\>\>\>\gt{$\langle$ sensor:null, g: \ob}\=\gt{$\langle$l:\{'sensor':null, 'co':0.1\}$\rangle$,}\\
+\>\>\>\>\gt{$\langle$l:\{'co':0.5\}$\rangle$}\\
+\>\>\>\>\gt{\cb $\rangle$} \\
+\>\>\gt{\cb}\\
+\end{tabbing}
+\noindent Notice that both the 3rd and 5th tuples of \gl{logs} were grouped
+under the \gl{sensor:null} group, despite the \gl{sensor} of the 3rd being \NULL
+while the \gl{sensor} of the 5th being \MISSING. The query result is 
+\begin{tabbing}
+\ \ \ \=\gt{\ob }\=\gt{\{'sensor':1, 'readings':\ob 0.4, 0.2\cb\},}\\
+\>\>\gt{\{'sensor':2, 'readings':\ob 0.3\cb\},}\\
+\>\>\gt{\{'sensor':null, 'readings':\ob 0.1, 0.5\cb \}}\\
+\>\gt{\cb}
+\end{tabbing}
+
+If we wanted to discriminate the \NULL from the \MISSING we could write the
+following query
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{}\=\gl{'sensor': CASE WHEN missingFlag THEN MISSING ELSE sensor END,}\\
+\>\>\gl{'readings': (SELECT VALUE v.l.co FROM g AS v) \}}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{GROUP BY l.sensor IS MISSING AS missingFlag, l.sensor AS sensor GROUP AS g}
+\end{tabbing}
+\noindent In this case the \gl{GROUP BY} would output the collection of binding tuples
+\begin{tabbing}
+\ \ \ \=$B^{out}_{\gl{GROUP}} = B^{in}_{\gl{SELECT}} =$\=\gt{\ob }\=\gt{$\langle$}\=\gt{missingFlag:false,}\\
+\>\>\>\>\gt{sensor:1, g: \ob}\=\gt{$\langle$l:\{'sensor':1, 'co':0.4\}$\rangle$,}\\ 
+\>\>\>\>\>\gt{$\langle$l:\{'sensor':1, 'co':0.2\}$\rangle$}\\
+\>\>\>\>\gt{\cb $\rangle$,}\\
+\>\>\>\gt{$\langle$ missingFlag: false, sensor:2, g:\ob $\langle$l:\{'sensor':2, 'co':0.3\}$\rangle$ \cb $\rangle$}\\
+\>\>\>\gt{$\langle$ missingFlag: false, sensor:null, g:\ob $\langle$l:\{'sensor':null, 'co':0.1\}$\rangle$ \cb $\rangle$}\\
+\>\>\>\gt{$\langle$ missingFlag: true, sensor:null, g:\ob $\langle$l:\{'co':0.5\}$\rangle$ \cb $\rangle$}\\
+\>\>\gt{\cb}\\
+\end{tabbing}
+\noindent and the query result would be
+\begin{tabbing}
+\ \ \ \=\gt{\ob }\=\gt{\{'sensor':1, 'readings':\ob 0.4, 0.2\cb\},}\\
+\>\>\gt{\{'sensor':2, 'readings':\ob 0.3\cb\},}\\
+\>\>\gt{\{'sensor':null, 'readings':\ob 0.1\cb\},}\\
+\>\>\gt{\{'readings':\ob 0.5\cb\}}\\
+\>\gt{\cb}
+\end{tabbing}
+\end{example}
+
+\subsubsection{The \gl{GROUP ALL} variant}
+\label{sec:group-all}
+
+The \gl{GROUP ALL} variant of \gl{GROUP BY} outputs a single binding tuple,
+regardless of whether the \gl{FROM}/\gl{WHERE} produced any tuples, i.e.,
+regardless of whether its input $B^{in}_{\gl{GROUP}}$ is empty or not.
+
+The \gl{GROUP ALL} is not increasing the expressiveness of PartiQL.
+Example~\ref{xmpl:group-all-core} shows how to achieve without \gl{GROUP ALL},
+what the \gl{GROUP ALL} can do. However, we include \gl{GROUP ALL} for
+facilitating the reduction of SQL's aggregation into the core PartiQL (see
+Section~\ref{sec:implicit-group-variable}). 
+%
+\begin{example}
+\label{xmpl:group-all-core}
+Consider again the \gt{logs} data of Example~\ref{xmpl:nesting-readings} and
+assume that we want to count the total number of readings that are above
+\gt{1.5} with a core PartiQL query. (Example~\ref{xmpl:group-by-nothing-sql}
+does the same with SQL.) 
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{'largeco': COLL\_COUNT(g)\}}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{WHERE l.co > 1.5}\\
+\>\gl{GROUP ALL AS g} 
+\end{tabbing}
+Notice, there are no readings above \gt{1.5} in the example data. Since there is
+no tuple that satisfies the \gl{WHERE} clause
+\[\begin{array}{l}
+B^{out}_{\gl{WHERE}} = B^{in}_{\gl{GROUP}} = \ob\ \cb \\
+B^{out}_{\gl{GROUP}} = B^{in}_{\gl{SELECT}} = \ob \langle \gt{g}: \ob\ \cb \rangle \cb
+\end{array}
+\]
+Since $\gl{COLL\_COUNT(}\ob\ \cb\gl{)}$ is \gt{0}, the query result is the collection 
+\[\ob \gt{\{'largeco': 0 \}} \cb \]
+Therefore the PartiQL query is equivalent to the plain SQL query
+\begin{tabbing}
+\ \ \ \=\gl{SELECT COUNT(*) AS largeco}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{WHERE l.co > 1.5}\\
+\end{tabbing}
+The following core PartiQL also accomplishes the same computation, without using
+\gl{GROUP ALL}.
+\begin{tabbing}
+\ \ \ \=\gl{\{'largeco': COLL\_COUNT(}\=\gl{SELECT VALUE l}\\
+\>\>\gl{FROM logs AS l}\\
+\>\>\gl{WHERE l.co > 1.5}\\
+\>\>\gl{)}\\
+\>\gl{\}}
+\end{tabbing}
+\end{example}
+
+ 
+\subsection{SQL compatibility features} 
+\label{sec:sql-groupby}
+The group-by and aggregation of PartiQL is backwards compatible to SQL.
+
+\subsubsection{Grouping Attributes and Direct Use of Grouping Expressions}
+\label{sec:grouping-attributes}
+For SQL compatibility PartiQL allows
+
+\[\gl{GROUP BY}\ \ldots\gl{,} e\gl{,} \ldots\]
+
+\noindent i.e., a grouping expression $e$ that is not associated with a grouping
+variable $x$. (In core PartiQL, one would write $e\ \gl{AS}\ x$.)
+
+For SQL compatibility, PartiQL supports using the grouping expression $e$ in
+\gl{HAVING}, \gl{ORDER BY} and \gl{SELECT} clauses. The SQL form (S) is
+syntactic sugar for the core PartiQL (C).
+
+\begin{tabular}{@{}l@{~}l@{~}l@{~}l@{}}
+(S) & \texttt{FROM ~~~} \ldots                          & (C)   & \texttt{FROM ~~~} \ldots \\
+    & \texttt{GROUP BY} $e \texttt{,} \ldots$         &       & \texttt{GROUP BY} $e \texttt{ AS } x \texttt{,} \ldots$ \\
+    & \texttt{HAVING ~} $f(e, \ldots)$                &       & \texttt{HAVING ~} $f(x, \ldots)$ \\
+    & \texttt{ORDER BY} $f'(e) \texttt{,} \ldots$     &       & \texttt{ORDER BY} $f'(x) \texttt{,} \ldots$  \\
+    & \texttt{SELECT ~} $f''(e) \texttt{,} \ldots$    &       & \texttt{SELECT ~} $f''(x) \texttt{,} \ldots$ \\
+\end{tabular}
+
+\begin{example}
+The SQL-compatible query 
+\begin{tabbing}
+\ \ \ \=\gl{SELECT v.a+1 AS bar}\\
+\>\gl{FROM foo AS v}\\
+\>\gl{GROUP BY v.a+1}
+\end{tabbing}
+\noindent is written in core PartiQL as
+\begin{tabbing}
+\ \ \ \=\gl{SELECT VALUE \{'bar': x\}}\\
+\>\gl{FROM foo AS v}\\
+\>\gl{GROUP BY v.a+1 AS x GROUP AS dontcare}
+\end{tabbing}
+\end{example}
+
+\highlight{Remark: What is ``same expression"?} An open question in the
+equivalence of (C) and (S) is the exact meaning of ``same expression $e$ in
+\gl{GROUP BY} and \gl{SELECT} (or \gl{HAVING}, \gl{ORDER BY})". Is \gt{v.a + 1}
+the same with \gt{1 + v.a}? Is \gt{v.a + 1} the same with \gt{a + 1} in the
+presence of a schema that dictates that the variable \gt{v} is a tuple with an
+attribute \gt{a}? Both SQL and PartiQL answer ``no" and ``yes" respectively to
+the two questions. In particular:
+
+An expression $e$ that appears in the \gl{GROUP BY} clause and an expression
+$e'$ that appears in the \gl{SELECT} or \gl{HAVING} or \gl{ORDER BY} are
+considered the same expression if they are syntactically identical after
+performing the schema-based rewritings of Section~\ref{sec:schema}.
+
+\subsubsection{SQL's Implicit Use of the Group Variable in SQL Aggregate Functions} 
+\label{sec:implicit-group-variable}
+
+SQL does not have explicit group variables. For SQL compatibility, PartiQL
+allows the SQL aggregation functions to be fed by expressions that do not
+explicitly say that there is iteration over the group variable. Suppose that a
+query
+
+\begin{enumerate}
+\item is a \gl{SELECT} query,
+\item lacks a \gl{GROUP AS} clause, and
+\item any of the \gl{SELECT}, \gl{HAVING} and/or \gl{ORDER BY} clauses contains
+a function call $f(e)$, where $f$ is a \textit{SQL aggregation function} such as
+\gl{SUM} and \gl{AVG}. (See Section~\ref{sec:SQL-aggregation-functions} 
+\end{enumerate}
+
+Then, the query is rewritten as follows:
+\begin{itemize}
+\item if the query has a \gl{GROUP BY} clause, add to it 
+\begin{tabbing}
+\ \ \ \gl{GROUP AS }$g$
+\end{tabbing}
+
+\noindent where $g$ is a fresh variable, i.e., a variable that is not a database
+name nor a variable of the query or a variable of the queries within which it is
+nested.
+
+\item if the query has no \gl{GROUP BY} clause, add to it 
+\begin{tabbing}
+\ \ \ \gl{GROUP ALL GROUP AS }$g$
+\end{tabbing}
+\noindent where $g$ is a fresh variable.
+
+\item if the aggregation function call is \gl{COUNT(*)}, then rewrite into
+$\gl{COUNT}(g)$
+
+\item otherwise, rewrite $f(e)$ into 
+
+\[ f(\gl{SELECT VALUE}\ e'\ \gl{FROM}\ g\ \gl{AS}\ p) \]
+
+\noindent where $e'$ is produced from $e$ as follows: Consider the variables
+$v_1, \ldots, v_n$  that appear in $B^{in}_{\gl{GROUP}}$ (i.e., the variables
+defined by the query's \gl{FROM} and \gl{LET} clauses) and are not grouping
+attributes. Substitute each identifier $v_i$ (that does not stand for attribute
+name) in $e$ with $p.v_i$.
+\end{itemize}
+
+\yannis{to self: Do we first dereference attribute names to variable.attribute
+names and then rewrite the GROUP BY? Or vice versa? Or all together?}
+
+\yannis{to self: Add ``database name" in query syntax under path}
+
+\begin{example}
+\label{xmpl:groupby-sql}
+
+Consider again the query of Example~\ref{xmpl:groupby-avg-count}. It can be
+written in an SQL compatible way as
+
+\begin{tabbing}
+\ \ \ \=\gl{SELECT }\=\gl{l.sensor AS sensor,}\\
+\>\>\gl{AVG(l.co) AS avg, }\\
+\>\>\gl{COUNT(*) AS count}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{GROUP BY l.sensor}
+\end{tabbing}
+\end{example}
+
+\begin{example}
+\label{xmpl:group-by-nothing-sql}
+The query of Example~\ref{xmpl:group-all-core} can be written in standard SQL
+syntax as
+\begin{tabbing}
+\ \ \ \=\gl{SELECT  COUNT(g) AS largeco}\\
+\>\gl{FROM logs AS l}\\
+\>\gl{WHERE l.co > 1.5}
+\end{tabbing}
+\end{example}
+
+Notice that SQL does not allow nested aggregate functions. Respectively, PartiQL
+does not allow one to write queries that lack a \gl{GROUP AS} or \gl{GROUP ALL}
+clause and have nested aggregate SQL functions.
+
+\subsubsection{Designation of SQL aggregate functions}
+\label{sec:SQL-aggregation-functions}
+
+Each implementation will have a list of SQL aggregate functions, which are not
+necessarily just the ones prescribed by the standard (\gl{COUNT}, \gl{SUM},
+\gl{AVG}, etc). (Recall from Section~\ref{sec:implicit-group-variable} that SQL
+aggregate functions do not use an explicit group variable.)
+
+Furthermore, it is required that for each SQL aggregate function $f$, if an
+implementation offers a corresponding core PartiQL aggregate function, the
+PartiQL function is named \gl{COLL\_$f$}. For example, the core PartiQL
+aggregate \gl{COLL\_AVG} corresponds to the SQL aggregate \gl{AVG}.
+Nevertheless, it is possible that an implementation offers only \gl{COLL\_AVG}
+or offers only \gl{AVG}. The semantic relationship between the SQL aggregate
+function and the corresponding core PartiQL aggregate function is the one
+explained in Section~\ref{sec:implicit-group-variable}: The SQL aggregate
+functions do not input explicit group variables and, thus, their semantics are
+explained by the reduction to the corresponding core PartiQL aggregate.
+
+\subsubsection{Aliases from \gl{SELECT} clause}
+\label{sec:select-aliases-groupby}
+
+In SQL, a grouping expression may be an alias that is defined by the \gl{SELECT}
+clause. For compatibility purposes, PartiQL adopts the same behavior. 
+
+The query (S), which uses the \gl{SELECT}-defined alias feature, is syntactic
+sugar for the query (C). Notice that the grouping expression $a$ is simply a
+shorthand for $e$.
+
+\begin{tabular}{@{}l@{~}l@{~}l@{~}l@{}}
+(S) & \gl{SELECT ~} $\ldots\gl{,} e\ \gl{AS}\ a\gl{,} \ldots$    & \ \ \ (C)   & \gl{SELECT ~} $\ldots\gl{,} e\ \gl{AS}\ a \gl{,} \ldots$ \\
+    & \gl{FROM ~~~} \ldots                          &    & \gl{FROM ~~~} \ldots \\
+    & \gl{GROUP BY} $\ldots\gl{,} a\gl{,} \ldots$         &       & \gl{GROUP BY} $\ldots\gl{,} e\gl{,} \ldots$ \\
+\end{tabular}
+
+In the case that the grouping expression is a constant positive integer literal
+$n$, then it stands for the $n$th attribute of the \gl{SELECT} clause. However,
+this requires that the tuples produced by the \gl{SELECT} have schema and they
+are ordered tuples. The relevant examples will be provided in the schema
+section.
+
+\begin{example}
+\label{xmpl:select-aliases-groupby}
+Consider the database 
+\begin{tabbing}
+\ \ \ \gt{people: \ob}\=\gt{\{'name': 'zoe',  'age': 10, 'tag': 'child'\},}\\
+\>\gt{\{'name': 'zoe', 'age': 20, 'tag': 'adult'\},}\\
+\>\gt{\{'name': 'bill', 'age': 30, 'tag': 'adult'\}}\\
+\>\gt{\cb}
+\end{tabbing}
+The query
+\begin{tabbing}
+\ \ \ \=\gl{SELECT p.tag || ':' || p.name AS tagname, AVG(p.age) AS average}\\
+\>\gl{FROM people AS p}\\
+\>\gl{GROUP BY tagname}
+\end{tabbing}
+\noindent is equivalent to the query 
+\begin{tabbing}
+\ \ \ \=\gl{SELECT p.tag || ':' || p.name AS tagname, AVG(p.age) AS average}\\
+\>\gl{FROM people AS p}\\
+\>\gl{GROUP BY p.tag || ':' || p.name}
+\end{tabbing}
+Either query results into 
+\begin{tabbing}
+\ \ \ \gt{people: \ob}\=\gt{\{'tagname': 'child:zoe',  'average': 10\},}\\
+\>\gt{\{'tagname': 'adult:zoe', 'average': 20\},}\\
+\>\gt{\{'tagname': 'adult:bill', 'average': 30\}}\\
+\>\gt{\cb}
+\end{tabbing}
+\end{example}
+ 
+\subsection{Windowing cases simplified by the PartiQL grouping}
+\label{sec:windows-by-grouping}
+
+\begin{example}
+\label{xmpl:windows-by-grouping}
+Consider again a collection of sensor readings, this time with a timestamp. 
+
+\begin{tabbing}
+\ \ \ \=\gt{logs: [}\=\gt{\{'sensor':1, 'co':0.4, 'timestamp':04:05:06\},}\\
+\>\>\gt{\{'sensor':1, 'co':0.2, 'timestamp':04:05:07\},}\\
+\>\>\gt{\{'sensor':1, 'co':0.5, 'timestamp':04:05:10\},}\\
+\>\>\gt{\{'sensor':2, 'co':0.3\}}\\
+\>\>\gt{]}
+\end{tabbing}
+
+We look for the ``jump" readings that are more than 2x the previous reading at
+the same sensor. The following query solves the problem using \gl{GROUP BY}.
+
+\begin{tabbing}
+\ \ \ \=\gl{SELECT }\=\gl{sensor AS sensor,}\\
+                          \>\>\gl{(}\=\gl{WITH }\=\gl{orderedReadings}\\
+                          \>\>\>\>\gl{AS (SELECT v FROM oneSensorsReadings v ORDER BY v.timestamp)}\\
+                          \>\>\>\gl{SELECT r.co, r.timestamp }\\
+                          \>\>\>\gl{FROM orderedReadings r AT p}\\
+                          \>\>\>\gl{WHERE r.co > 2*orderedReadings[p-1].co}\\
+                          \>\>\>\gl{ORDER BY p}\\
+                          \>\>\>\gl{) AS jumpReadings}\\
+       \>\gl{FROM logs l}\\
+       \>\gl{GROUP BY l.sensor AS sensor GROUP AS oneSensorsReadings}
+\end{tabbing}
+
+The result is
+\begin{tabbing}
+\ \ \ \=\gt{\ob}\=\gt{\{'sensor':1, 'jumpReadings':[\{'co':0.4, 'timestamp':04:05:06\}]\},}\\
+\>\>\gt{\{'sensor':2, 'jumpReadings':[]\}}\\
+\>\>\gt{\cb}
+\end{tabbing}
+
+\end{example}

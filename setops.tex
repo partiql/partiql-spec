@@ -1,0 +1,118 @@
+\section{\gl{UNION} / \gl{INTERSECT} / \gl{EXCEPT} clauses}
+\label{section:setop}
+Coming up...
+\eat{
+We describe next the PartiQL \texttt{UNION ALL}, \texttt{INTERSECT ALL} and
+\texttt{EXCEPT ALL} bag operators, as well as their duplicate-eliminating
+counterparts the \texttt{UNION}, \texttt{INTERSECT} and \texttt{EXCEPT}. While
+SQL bag operators always input/output bags of flat, homogeneous tuples, PartiQL
+queries have to face the following issues:
+\begin{itemize}
+\item the inputs may not be bags. Thus PartiQL semantics specify which cases
+coerce and how Vs which cases fail.
+\item the elements of the inputs may not be homogenous and they may not be
+atomic values. Thus PartiQL semantics specify how comparisons between elements
+are accomplished. 
+\end{itemize}
+
+\subsection{PartiQL Bag Operator Basics}
+\label{sec:bagops-basics}
+As in SQL, a bag operator%
+
+\footnote{SQL's bag operators are often referred to as set operators, while the
+term set is mathematically incorrect.}
+
+is specified with: $q~S~q'$ (Figure \ref{figure:query:bnf}, lines 9-10), which
+comprises a left query $q$, the bag operator $S$ and a right query $q'$. The bag
+operator $S$ may be \texttt{UNION}, \texttt{INTERSECT} or \texttt{EXCEPT} and
+may be optionally suffixed with \texttt{ALL}. Let $q \rightarrow v$ and $q'
+\rightarrow v'$, where $v$ and $v'$ are arbitrary values. The \texttt{ALL}
+variations input bags and output a bag of values, which may have duplicate
+values even if the input does not. Presence of \texttt{ALL} specifies that the
+output may have duplicate elements, while absence requires duplicate
+elimination, in which case the output is an implicit set.
+
+\subsection{Equivalence function used by Bag Operators}
+\label{sec:equiv-bagops}
+The bag operators utilize the function \gl{eqg} to decide the equivalence of
+elements of their input. Notice it is the same function that is used by the
+\gl{GROUP BY}, as described in Section~\ref{sec:eqg}. Furthermore, alike the
+\gl{GROUP BY}, the \gl{UNION} and \gl{INTERSECT} operators retain the \gl{NULL}
+whenever they compare a \gl{NULL} and a \gl{MISSING}.
+
+\subsection{Operations on Non-Bags}
+\label{sec:setops-on-non-bags}
+Mistyping situations may emerge when one or both of the inputs to a set operator
+is not a bag. In all cases, mistypings are treated identically to mistyping in
+the \gl{FROM} clause, as described in Section~\ref{sec:bag-array-mistypings}. In
+particular, if an input argument is any of the following, it is coerced
+according to the following rules:
+
+\begin{enumerate}
+\item A scalar value $s$ is coerced into the bag $\ob s \cb$.
+\item A tuple $t$ is coerced into the bag $\ob t \cb$.
+\item An absent value $a$ is coerced into the bag $\ob a \cb$.
+\item An array $r$ is coerced into the bag that dismisses the order of elements
+in $r$.
+\end{enumerate}
+
+\subsection{Array versions of the Set Operators}
+\label{sec:array-versions-of-setops}
+SQL does not allow the set operators applied on ordered subqueries (i.e.,
+queries with \gl{ORDER BY}). Thus there is no compatibility issue when we extend
+the set operators of PartiQL to input arrays instead of bags. PartiQL allows its
+users to easily express versions of the set operators where the inputs have
+order and such order is easily preserved in the output.%
+
+\footnote{The described functionality can also be accomplished without the array
+operators that preserve input order. However, it is a tedious exercise to do the
+job by using the \gl{AT} and \gl{ORDER BY} operators.}
+
+\subsubsection{CONCAT} 
+\label{sec:concat}
+The query 
+\[e_1\ \gl{CONCAT}\ e_2\] \noindent normally expects that $e_1$ and $e_2$ are
+arrays. Its output is the concatenation of $e_1$ and $e_2$. Thus, it can be
+thought of as the array version of \gl{UNION ALL}.
+
+If $e_1$ is a bag and $e_2$ is an array, then the elements of $e_1$ appear
+before the elements of $e_2$ in the output and the elements of $e_2$ maintain
+their order. (Vice versa if $e_1$ is an array and $e_2$ is a bag.) If both $e_1$
+and $e_2$ are bags, then the elements of $e_1$ appear before the elements of
+$e_2$ in the output.
+
+If $e_1$ or $e_2$ is neither an array nor a bag, it is conceptually coerced into
+a singleton array (or singleton bag, since there is no difference) according to
+the rules of Section~\ref{sec:setops-on-non-bags} and then proceed according to
+the above semantics.
+
+\subsubsection{ORDERED INTERSECT ALL}
+\label{sec:ordered-intersect}
+The query 
+\[e_1\ \gl{ORDERED INTERSECT ALL}\ e_2\] \noindent normally expects that $e_1$
+is an array and $e_2$ is either bag or array. It outputs the elements of $e_1$
+that are found in $e_2$ and the qualified elements retain their order.
+
+If $e_1$ is a bag the semantics are identical to \gl{INTERSECT ALL}.
+
+If $e_1$ or $e_2$ is neither an array nor a bag, it is conceptually coerced into
+a singleton array (or singleton bag, since there is no difference) according to
+the rules of Section~\ref{sec:setops-on-non-bags} and then proceed according to
+the above semantics.
+
+\subsubsection{ORDERED EXCEPT ALL}
+\label{sec:ordered-except}
+The query 
+\[e_1\ \gl{ORDERED EXCEPT ALL}\ e_2\] \noindent normally expects that $e_1$ is
+an array and $e_2$ is either bag or array. It outputs the elements of $e_1$ that
+are \textit{not} found in $e_2$ and the qualified elements retain their order.
+
+If $e_1$ is a bag the semantics are identical to \gl{EXCEPT ALL}.
+
+If $e_1$ or $e_2$ is neither an array nor a bag, it is conceptually coerced into
+a singleton array (or singleton bag, since there is no difference) according to
+the rules of Section~\ref{sec:setops-on-non-bags} and then proceed according to
+the above semantics.
+
+\yannis{to do: fix the grammar to (Figure~\ref{figure:query:bnf}.} 
+}
