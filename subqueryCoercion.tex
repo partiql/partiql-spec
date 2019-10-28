@@ -26,8 +26,8 @@ lhs of a comparison operator where the lhs is an array literal, it coerces into
 array, per Section~\ref{sec:select-coercion-array}.)
 \item if it is an SFW subquery expression that (a) is not the collection
 expression of a \gl{FROM} clause item and (b) is not the rhs of an \gl{IN}. (If
-it is the rhs of an \gl{IN} then it should not be coerced; see note on semantics
-of \gl{IN}, Section~\ref{sec:in}.)
+it is the rhs of an \gl{IN} then it should not be coerced.)
+\eat{FIXME ; see note on semantics of \gl{IN}, Section~\ref{sec:in}.)}
 \end{itemize}
 
 Essentially, a subquery that is coerced may appear in all clauses except the
