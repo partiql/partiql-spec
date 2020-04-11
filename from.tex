@@ -300,10 +300,10 @@ may write (as is common in SQL):
 \begin{lstlisting}
 (*$f_1$*), (*$f_2$*), (*$f_3$*) (*$\eqv$*)
 (*$f_1$*) CROSS JOIN (*$f_2$*) CROSS JOIN (*$f_3$*) (*$\eqv$*)
-(*$f_1$*) LEFT JOIN (*$f_2$*) ON TRUE CROSS JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
+(*$f_1$*) JOIN (*$f_2$*) ON TRUE JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
 ((*$f_1$*), (*$f_2$*)), (*$f_3$*) (*$\eqv$*)
 ((*$f_1$*) CROSS JOIN (*$f_2$*)) CROSS JOIN (*$f_3$*) (*$\eqv$*)
-((*$f_1$*) LEFT JOIN (*$f_2$*) ON TRUE) CROSS JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
+((*$f_1$*) JOIN (*$f_2$*) ON TRUE) JOIN (*$f_3$*) ON TRUE (*$\eqv$*)
 \end{lstlisting}
 
 \paragraph{Semantics} Consider the following:
