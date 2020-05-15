@@ -5,7 +5,7 @@ SPECPDF=main.pdf
 all: $(SPECPDF)
 
 $(SPECPDF): *.tex
-	latexmk	-pdf -pdflatex="pdflatex -interaction=nonstopmode" -use-make main.tex
+	latexmk	-bibtex -pdf -pdflatex="pdflatex -interaction=nonstopmode" -use-make main.tex
 
 clean:
 	latexmk -C

@@ -2,6 +2,40 @@
 \label{sec:model}
 
 \begin{figure}[ht!]
+  \centering
+  \rule[1ex]{\textwidth}{0.1pt}
+  \begin{displaymath}
+  \begin{grammar}
+    \nt{value}  & \prod & \nt{absent}                                                                   & \\
+                & \alt  & \nt{scalar}                                                                   & \\
+                & \alt  & \nt{tuple}                                                                    & \\
+                & \alt  & \nt{collection}                                                               & \\
+    \nt{absent} & \prod & \terminal{\NULL}                                                              & \\
+                & \alt  & \terminal{\MISSING}                                                           & \\
+    \nt{scalar} & \prod & \ionlit{\ntsub{lit}{\mbox{Ion}}}                                              & \\
+                & \alt  & \ntsub{lit}{\mbox{SQL}}                                                       & \\
+    \nt{tuple}  & \prod & \pqltuple{\seplof{\pqlpair{\nt{string}}
+                                                    {\nt{value}}}
+                                           {,}}                                                         & \\
+                &       & \begin{array}{r@{\ }l}
+                            \mbox{where} & \nt{string} \mbox{ is any valid Ion or SQL string literal}\\
+                            \mbox{and}   & \nt{value} \neq \terminal{\MISSING}  \\
+                          \end{array}\\
+
+     \nt{collection}            & \prod & \nt{array}                                           & \\
+                                & \alt  & \nt{bag}                                             & \\
+     \nt{array}                 & \prod & \pqlarray{\seplof{\nt{value}}{,}}                    & \\
+     \nt{bag}                   & \prod & \pqlbag{\seplof{\nt{value}}{,}}                      & \\
+     \ntsub{lit}{\mbox{Ion}} & \prod & \mbox{any valid Ion literal value~\cite{ion:spec}}   & \\
+     \ntsub{lit}{\mbox{SQL}} & \prod & \mbox{any valid SQL literal value~\cite{sql92:spec}} & \\
+  \end{grammar}
+  \end{displaymath}
+  \rule[1ex]{\textwidth}{0.1pt}
+  \caption{BNF grammar for \pql values.}
+  \label{fig:pgl-values-grammar}
+\end{figure}
+
+\begin{figure}[ht!]
 \centering
 \begin{tabular}{|r|lrl|}
 \hline
@@ -14,7 +48,7 @@
  7  & \gn{scalar\_value}            & \gp   & \ionquote{\gs{ion\_literal}} \\
  8  &                               & \gd   & \gs{sql\_literal} \\
  9  & \gn{tuple\_value}             & \gp   & \gl{\{\ \}} \\
-10  &                               & \gd   & \gl{\{} \gs{string\_value} \gl{:} \gn{value} (\gl{,} \gs{string\_value} \gl{:} \gn{value})* \gl{\}} \\ 
+10  &                               & \gd   & \gl{\{} \gs{string\_value} \gl{:} \gn{value} (\gl{,} \gs{string\_value} \gl{:} \gn{value})* \gl{\}} \\
 11  &                               &       & \ \ \ \ \ \ \ \gn{value} cannot be \MISSING \\
 12  & \gn{collection\_value}        & \gp   & \gn{array\_value} \\
 13  &                               & \gd   & \gn{bag\_value} \\
@@ -54,20 +88,20 @@ SQL operations may use the order---support for this is described in detail in
 Section~\ref{sec:schema}.
 
 \yannis{OS: Next paragraph is odd. We give up on data model and talk about a known format (JSON)
-and Ion (as a format). I recommend that we, instead, cast the Ion type system as PartiQL's 
+and Ion (as a format). I recommend that we, instead, cast the Ion type system as PartiQL's
 recommended extension over SQL. I'm not sure why JSON deserves a special mention.
 }
 
 \almann{How does the following look?}
 
-PartiQL's data model extends SQL to Ion's type system to cover schema-less and 
+PartiQL's data model extends SQL to Ion's type system to cover schema-less and
 nested data. Such values can be directly quoted with \bt quotes.
 
 Unlike SQL, PartiQL allows the possibility of duplicate attribute names, in the
 interest of compatibility with non-strict JSON/Ion datasets. However PartiQL
 does not encourage duplicate attribute names; navigation into tuples with the
 conventional dot notation (Section~\ref{section:paths}) is tuned to the
-assumption that the attribute names are unique. 
+assumption that the attribute names are unique.
 
 A \gn{collection\_value} is either an ordered or unordered
 \linevalues{collection}. Both arrays and bags may contain duplicate elements. An
@@ -125,13 +159,13 @@ this example, the top-level name refers to a value that is \textit{not} a bag
 (e.g. a table).
 
 \item There is a distinction between null-valued attributes and missing
-attributes. 
+attributes.
 
-\yannis{OS: it carries over to array elements, right? 
+\yannis{OS: it carries over to array elements, right?
 But it makes no sense to carryover to bags and thus we need to mark
 the "cannot be MISSING) exception there also.}
 
-\almann{MISSING in a bag and array is fine, the problem is in serializing such 
+\almann{MISSING in a bag and array is fine, the problem is in serializing such
 data.}
 
 \item PartiQL makes an explicit distinction between arrays and bags, where the

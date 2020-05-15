@@ -12,7 +12,7 @@ and formal detail on PartiQL.
 SQL users who are not interested in the full detail and the complete formalism
 but are interested in learning how PartiQL extends SQL may also read the
 tutorial. Unlike this formal specification, the tutorial has a ``how to''
-orientation and is primarily driven by examples. 
+orientation and is primarily driven by examples.
 
 \paragraph{PartiQL core and PartiQL syntactic sugar}
 In the interest of precision and succinctness, we tier the PartiQL specification
@@ -27,4 +27,27 @@ Then we layer ``syntactic sugar'' features over the core. Commonly, syntactic
 sugar achieves well-known SQL syntax and semantics. Formally, every syntactic
 sugar feature is explained by reduction to the core.
 
-\pagebreak
+\subsection{Notation}
+\label{sec:notation}
+
+We use extended Backus-Naur form (EBNF) to describe
+grammars. Non-terminal terms appear in italics, e.g., \nt{value}, and
+terminal appear in typewriter font, e.g., \terminal{NULL}. A
+production rules uses \prod to define the expansion of a non-terminal
+and \alt for alternatives, e.g.,
+
+\begin{displaymath}
+  \begin{grammar}
+    \nt{value} & \prod & \nt{string} & \mbox{\nt{value} expands into either \nt{string}}\\
+               & \alt  & \terminal{null} & \mbox{or the literal \terminal{null}}\\
+  \end{grammar}
+\end{displaymath}
+
+We also use $\seplof{\x{}}{,}$ to denote a possibly empty list of
+comma separated elements $\x{}$, i.e.,
+
+\begin{displaymath}
+  \begin{array}{lll}
+    \seplof{\x{}}{,} & = & \x{1}, \ldots, \x{n} \quad n \geq 0 \\
+  \end{array}
+\end{displaymath}

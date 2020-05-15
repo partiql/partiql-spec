@@ -1,0 +1,107 @@
+%%
+%% This is file specmath.sty
+%%
+%% Symbols and Math specializations specific to the PartiQL Spec
+%%
+\NeedsTeXFormat{LaTeX2e}[1994/06/01]
+\ProvidesPackage{specmath}[2020/05/01 v0.1 specmath]
+
+
+\message{Spec math related latex setup}
+
+\RequirePackage{alltt}
+\RequirePackage{xspace}
+
+\def\alt{\ma{~~\vert~~}} % vertical bar
+\def\prod{\ma{\rightarrow}}
+
+\def\lbr{{\tt \char'173}}       % \tt braces
+\def\rbr{{\tt \char'175}}
+
+\def\lthan{{\tt \char'74}}       % \tt <
+\def\gthan{{\tt \char'76}}       % \tt >
+
+% Like \ensuremath, only better.  \xspace is your friend!
+\newcommand{\ma}[1]{\ensuremath{#1}\xspace}
+
+% Use to define 0-arg macros that go into math mode
+%%
+% Example:
+% \mdef\a{\alpha} will produce Greek alpha regardless of the mode
+\def\mdef#1#2{\def#1{\ma{#2}}}
+
+% meta-variable with index
+%%
+% Example:
+%% \newmeta\expr{\itop{e}} allows you to type
+%%
+%% \exp0 displays as e_{0}
+%% \exp{} displays as e
+\newcommand\newmeta[2]{\def#1##1{\ma{#2_{##1}}}}
+
+\newmeta\x{\itop{x}}
+\newmeta\e{\itop{x}}
+\newmeta\q{\itop{x}}
+
+% Separated list of
+\def\seplof#1#2{\ensuremath{(#1)^{*({#2})}}}
+
+
+% BNF
+%% Required math mode, typically display math.
+%% Array with 4 slots,
+%%
+%%  x & ::= & y & z  displays x ::= y    z
+%%
+%% last slot is commentary
+\newenvironment{grammar}{\begin{array}{lll@{\quad}l}}{\end{array}}
+
+% Terminal and non-terminal elements in a grammar
+%\def\nt#1{\hbox{$\langle\hbox{\it #1\/}\rangle$}} % <italics>
+\def\nt#1{\hbox{$\hbox{\it #1\/}$}}                % italics
+\def\ntsub#1#2{\hbox{$\hbox{\it #1$_{#2}$\/}$}}                % italics
+\def\terminal#1{\hbox{\tt #1}}                         % tt type
+
+
+% Operators
+\def\rmop#1{\ma{\mathop{\hbox{\rm #1\/}}\nolimits}}
+\def\itop#1{\ma{\mathop{\hbox{\it #1\/}}\nolimits}}
+\def\bfop#1{\ma{\mathop{\hbox{\bf #1\/}}\nolimits}}
+\def\ttop#1{\ma{\mathop{\hbox{\tt #1\/}}\nolimits}}
+
+\def\itord#1{\ma{\mathord{\hbox{\it #1\/}}}}
+\def\rmord#1{\ma{\mathord{\hbox{\rm #1\/}}}}
+\def\bford#1{\ma{\mathord{\hbox{\bf #1\/}}}}
+\def\ttord#1{\ma{\mathord{\hbox{\tt #1\/}}}}
+
+% declaration syntax
+
+\def\newrmop#1#2{\def#1{\rmop{#2}}}
+\def\newitop#1#2{\def#1{\itop{#2}}}
+\def\newbfop#1#2{\def#1{\bfop{#2}}}
+\def\newttop#1#2{\def#1{\ttop{#2}}}
+
+\def\newitord#1#2{\def#1{\itord{#2}}}
+\def\newrmord#1#2{\def#1{\rmord{#2}}}
+\def\newbford#1#2{\def#1{\bford{#2}}}
+\def\newttord#1#2{\def#1{\ttord{#2}}}
+
+
+%% PartiQL value grammar
+\newttord{\ionbesc}{\bt}
+\newttord{\ioneesc}{\bt}
+\newcommand\ionlit[1]{\ma{\ionbesc#1\ioneesc}}
+
+\newttord{\barray}{\lbrack}
+\newttord{\earray}{\rbrack}
+\newcommand{\pqlarray}[1]{\barray#1\earray}
+
+\newttord{\bbag}{\lthan\!\!\lthan}
+\newttord{\ebag}{\gthan\!\!\gthan}
+\newcommand{\pqlbag}[1]{\bbag#1\ebag}
+
+\newttord{\btuple}{\lbr}
+\newttord{\etuple}{\rbr}
+\newttord{\pcol}{:}
+\newcommand{\pqltuple}[1]{\ma{\btuple#1\etuple}}
+\newcommand{\pqlpair}[2]{\ma{#1\pcol#2}}

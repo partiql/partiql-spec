@@ -2,10 +2,6 @@
 
 \input{preamble}
 
-% Let's make sure each section starts on its own page
-\let\oldsection\section
-\renewcommand\section{\clearpage\oldsection}
-
 \newcounter{issue}
 
 \newcommand{\reminder}[1]{\textbf{OPEN~\refstepcounter{issue}: \emph{#1}}}
@@ -22,7 +18,7 @@
 \newcommand{\almann}[1]{\reminder{Almann: #1}}
 \newcommand{\yannis}[1]{\reminder{Yannis: #1}}
 \newcommand{\yannisclosed}[1]{\reminderclosed{Yannis: #1}}
-\newcommand{\almannclosed}[1]{\reminderclosed{Almann: #1}}	
+\newcommand{\almannclosed}[1]{\reminderclosed{Almann: #1}}
 \newcommand{\yannisfuture}[1]{\reminderfuture{Yannis: #1}}
 \newcommand{\almannfuture}[1]{\reminderfuture{Almann: #1}}
 
@@ -124,7 +120,7 @@
 \newcommand{\cut}{-\}}
 
 \newcommand{\ionquote}[1]{\gl{\bt} #1 \gl{\bt}}
- 
+
 % ENVIRONMENT definitions
 \newcommand{\env}{\rho}
 \newcommand{\typeenv}{\Gamma}
@@ -212,4 +208,15 @@
 %\input{let}
 \input{pivot}
 \input{schema}
+
+
+\newpage
+\bibliographystyle{plain}
+\bibliography{refs}
+
 \end{document}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
