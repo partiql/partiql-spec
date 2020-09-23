@@ -3,7 +3,7 @@ PARTIQL-125, migrate to GH
 A Proposal for Proposing Specification Changes
 
 
-In an ideal world, when a new feature is added to the PartiQL language the process for doing so 
+In an ideal world when a new feature is added to the PartiQL language the process for doing so 
 would be:
 
 - The PartiQL specification is updated *first*.
