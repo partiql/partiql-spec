@@ -6,7 +6,7 @@ This is the LaTeX source for the [PartiQL] specification.
 
 As a prerequisite, you need the following:
 
-* A LaTeX distribution such as [TeX Live][texlive].
+* A LaTeX distribution such as [TeX Live][texlive].  Debian based linux distributions should install the package `texlive-full`.
 * GNU Make.
 
 To build a PDF:
