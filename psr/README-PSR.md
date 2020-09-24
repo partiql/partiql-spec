@@ -30,8 +30,8 @@ PartiQL specification.  They exist as documents that reside in the
 
 - add the `LET` sub-clause in various SFW queries
 - add syntax for invocation of stored procedures
-- Clarify any ambiguous part of the specification.  If the clarification results in changes to the reference 
-implementation.  If no changes to the reference implementation are needed, a standard GitHub PR should be submitted.
+- Clarify any ambiguous part of the specification (Only if clarification results in changes to the reference 
+implementation.  If no changes to the reference implementation are needed then a standard GitHub PR should be submitted.
 
 PSRs may be submitted by any party.
 
