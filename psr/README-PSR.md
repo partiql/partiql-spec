@@ -12,12 +12,18 @@ would be:
 However, this doesn't always work out so well because:
 
 - It is often difficult to precisely specify new features if there is no prototype to prove the 
-proposed behavior is implementable or desirable.  Some experimentation may be required in order
-to know the best way for a new feature to be implemented.
-- The time and resources of the PartiQL steering committee may not be immediately available to review 
-every proposal in depth, and to re-review as changes to the proposed features are discovered during 
-implementation.
-- There may not be enough time to update the specification before delivery of a new feature.
+  proposed behavior is implementable or desirable, forcing the implementation to deviate slightly (or significantly)
+  from the specification.  Some experimentation and prototyping may be required in order
+  to know the best way for a new feature to be implemented.
+- Since the individual or team defining the new feature may not always be the same as the one implementing it,
+  some intermediate and lightweight way to specify a feature should be should exist.  This intermediate 
+  specification does not need to be written to the same level of detail that would be required for the official
+  specification.  Indeed, some of those details may not even be known yet and will not be discovered until
+  after feature has been added to the reference implementation.
+- The time and resources of the PartiQL steering committee may not be immediately available to review
+  every proposal in depth, and to re-review as changes to the proposed features are discovered during
+  implementation.
+ - There may not be enough time to update the specification before delivery of a new feature.
 
 To address these concerns, I would like to propose that we adopt a process for revising the specification.
 
@@ -33,7 +39,11 @@ PartiQL specification.  They exist as documents that reside in the
 - Clarify any ambiguous part of the specification (Only if clarification results in changes to the reference 
 implementation.  If no changes to the reference implementation are needed then a standard GitHub PR should be submitted.
 
-PSRs may be submitted by any party.
+#### Notes about PSRs:
+
+- PSRs may be submitted by any party.
+- The PartiQL steering committee will only need to review the final revision of the PSR and *may* be more involved 
+with some of the PSRs than others.
 
 ### PSR Process
 
