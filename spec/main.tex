@@ -1,6 +1,7 @@
 \documentclass{article}
 
-\input{preamble}
+\input{../common/preamble}
+\input{../common/macros}
 
 % Let's make sure each section starts on its own page
 \let\oldsection\section
@@ -28,10 +29,6 @@
 
 \newcommand{\eat}[1]{}
 
-\newcommand{\TRUE}{\gl{TRUE}\xspace}
-\newcommand{\FALSE}{\gl{FALSE}\xspace}
-\newcommand{\NULL}{\gl{NULL}\xspace}
-\newcommand{\MISSING}{\gl{MISSING}\xspace}
 
 \def\ground{\bot}
 \def\collscan{S^C}
@@ -116,14 +113,6 @@
 \newcommand{\sql}{SQL Compatibility}
 \newcommand{\pl}{Functional Programming}
 
-% MODEL definitions
-\newcommand{\bt}{\texttt{\`}}
-\newcommand{\ob}{<\!\!<}
-\newcommand{\cb}{>\!\!>}
-\newcommand{\out}{\{-}
-\newcommand{\cut}{-\}}
-
-\newcommand{\ionquote}[1]{\gl{\bt} #1 \gl{\bt}}
  
 % ENVIRONMENT definitions
 \newcommand{\env}{\rho}

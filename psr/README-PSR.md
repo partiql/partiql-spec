@@ -1,7 +1,12 @@
+# A Proposal for Proposing Specification Changes 
 
+## Definitons 
 
-A Proposal for Proposing Specification Changes
+- `PartiQL Implementation`: an implementation of the partiql language such as the 
+[reference implementation](https://github.com/partiql/partiql-lang-kotlin/).
+- `PartiQL service`: a component that combines PartiQL with data sources
 
+## Background
 
 In an ideal world when a new feature is added to the PartiQL language the process for doing so 
 would be:
@@ -13,19 +18,19 @@ However, this doesn't always work out so well because:
 
 - It is often difficult to precisely specify new features if there is no prototype to prove the 
   proposed behavior is implementable or desirable, forcing the implementation to deviate slightly (or significantly)
-  from the specification.  Some experimentation and prototyping may be required in order
+  from the original proposal.  Some experimentation and prototyping may be required in order
   to know the best way for a new feature to be implemented.
 - Since the individual or team defining the new feature may not always be the same as the one implementing it,
   some intermediate and lightweight way to specify a feature should be should exist.  This intermediate 
   specification does not need to be written to the same level of detail that would be required for the official
   specification.  Indeed, some of those details may not even be known yet and will not be discovered until
   after feature has been added to the reference implementation.
+- There may not be enough time to update the specification before delivery of a new feature.
 - The time and resources of the PartiQL steering committee may not be immediately available to review
   every proposal in depth, and to re-review as changes to the proposed features are discovered during
   implementation.
- - There may not be enough time to update the specification before delivery of a new feature.
 
-To address these concerns, I would like to propose that we adopt a process for revising the specification.
+To address these concerns, we propose to adopt a process for revising the specification.
 
 ### PartiQL Specification Requests
 
@@ -46,6 +51,12 @@ implementation.  If no changes to the reference implementation are needed then a
 with some of the PSRs than others.
 
 ### PSR Process
+
+- A PSR is added in the form of a LaTeX document that describes the new feature to the `psr` directory of the 
+specification repository.  (Submit a pull request.) 
+- When first implemented by the PariQL reference implementation, the feature should be disabled by default.  This 
+allows PartiQL services to use the reference implementation that contains experimental features without risking end-users
+taking dependencies on features that aren't fully formalized
 
 ![PSR Flowchar](psr.jpeg)
 
