@@ -25,8 +25,8 @@ and include them as optional clauses for \gl{SELECT} queries.
         \row &     & (\gt{GROUP BY} \gn{expr\_query} (\gt{AS} \gn{variable})? \\ 
         \row &     & ~~~~(\gt{,} \gn{expr\_query} (\gt{AS} \gn{variable})?)*)? \\
         \row &     & ~~~~\gt{GROUP AS} \gn{variable} \\
-        \row &     & (\gt{HAVING} \gn{expr\_query})? \\
         \row &     & \textbf{(\gt{LETTING} \gn{expr\_query})? $\leftarrow$ NEW} \\
+        \row &     & (\gt{HAVING} \gn{expr\_query})? \\
         \row &     & ((\gt{OUTER})? (\gt{UNION}\gd\gt{INTERSECT}\gd\gt{EXCEPT}) \gt{ALL}? \gn{sfw\_query})? \\
         \row &     & ((\gt{ORDER BY} (\gn{expr\_query} (\gt{ASC}\gd\gt{DESC})? \gs{order\_spec}?  \\
         \row &     & ~~~~~~~~(\gt{,} \gn{expr\_query} (\gt{ASC}\gd\gt{DESC})? \gs{order\_spec}?)*)? ) \\
