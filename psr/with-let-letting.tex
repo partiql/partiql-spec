@@ -1,6 +1,6 @@
 
 This PSR adds defintions for \gn{let\_clause} and \gn{letting\_clause} to figure 3 of the PartiQL specification 
-and include them it as optional clauses for \gl{SELECT} queries.
+and include them as optional clauses for \gl{SELECT} queries.
 
 \newcounter{rownum_ctr}
 \newcommand\row{\stepcounter{rownum_ctr}\arabic{rownum_ctr}}
@@ -20,7 +20,7 @@ and include them it as optional clauses for \gl{SELECT} queries.
         \row & \gp & (\gt{WITH} \gn{query} \gt{AS} \gn{variable})? \\
         \row &     & \gn{select\_clause} \\ %FIXME (see Figure~\ref{figure:select:bnf}) \\
         \row &     & \gn{from\_clause} \\   %FIXME (see Figure~\ref{figure:from:bnf}) \\ 
-        \row &     & \textbf{\gn{let\_clause}? $\leftarrow $ NEW}   \\
+        \row &     & \textbf{(\gn{let\_clause)}? $\leftarrow $ NEW}   \\
         \row &     & (\gt{WHERE} \gn{expr\_query})? \\
         \row &     & (\gt{GROUP BY} \gn{expr\_query} (\gt{AS} \gn{variable})? \\ 
         \row &     & ~~~~(\gt{,} \gn{expr\_query} (\gt{AS} \gn{variable})?)*)? \\
@@ -124,7 +124,7 @@ LET 1 AS x, 42 AS x
 following query is \lstinline{<< 42 >>}.
 
 \begin{lstlisting}
-SELECT VALUE x FFOM << { 'y': 42 } >> AS x LET x = x.y
+SELECT VALUE x FROM << { 'y': 42 } >> AS x LET x = x.y
 \end{lstlisting} 
 
 \noindent Variables defined earlier \gn{var\_decl\_list} cannot access variables defined
@@ -149,7 +149,7 @@ TODO...
 \label{sec:let-clause}
 
 \gl{LET} is an optional clause of a \gl{SELECT} query that immediately follows
-the \gl{FROM} clause. \gl{LET} executes once for every environment producted by
+the \gl{FROM} clause. \gl{LET} executes once for every environment produced by
 the \gl{FROM} clause, creating one nested environment with a newly bound
 variable for every \gn{var\_decl}. The \emph{last} environment produced by the
 \gl{LET} clause is accessible in the remaining clauses of the \gl{SELECT} query
@@ -160,7 +160,7 @@ with certain exceptions defined in section
 \label{sec:let-variable-accessibility}
 
 The \gl{GROUP BY} clause consumes the environments produced by the \gl{FROM} clause and
-produces a new set of environments, which effects the clauses which can access
+produces a new set of environments, which affects the clauses which can access
 the variables defined by \gl{LET}.  Figure
 \ref*{figure:let-variable-accessibility} shows which parts of a \gl{SELECT}
 query can access variables defined by \gl{LET} with and without \gl{GROUP
