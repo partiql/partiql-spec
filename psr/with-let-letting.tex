@@ -1,0 +1,233 @@
+
+This PSR adds defintions for \gn{let\_clause} and \gn{letting\_clause} to figure 3 of the PartiQL specification 
+and include them as optional clauses for \gl{SELECT} queries.
+
+\newcounter{rownum_ctr}
+\newcommand\row{\stepcounter{rownum_ctr}\arabic{rownum_ctr}}
+
+\begin{figure}[ht!]
+\centering
+\scriptsize
+\begin{tabular}{|@{~}rc@{~}l@{~}|}
+\hline
+        \row & \multicolumn{2}{@{}l@{~}|}{\gn{query}} \\
+        \row & \gp & \gn{sfw\_query} \\
+        \row & \gd & \gn{expr\_query} \\ 
+
+        \hline
+
+        \row & \multicolumn{2}{@{}l@{~}|}{\gn{sfw\_query}} \\
+        \row & \gp & (\gt{WITH} \gn{query} \gt{AS} \gn{variable})? \\
+        \row &     & \gn{select\_clause} \\ %FIXME (see Figure~\ref{figure:select:bnf}) \\
+        \row &     & \gn{from\_clause} \\   %FIXME (see Figure~\ref{figure:from:bnf}) \\ 
+        \row &     & \textbf{(\gn{let\_clause)}? $\leftarrow $ NEW}   \\
+        \row &     & (\gt{WHERE} \gn{expr\_query})? \\
+        \row &     & (\gt{GROUP BY} \gn{expr\_query} (\gt{AS} \gn{variable})? \\ 
+        \row &     & ~~~~(\gt{,} \gn{expr\_query} (\gt{AS} \gn{variable})?)*)? \\
+        \row &     & ~~~~\gt{GROUP AS} \gn{variable} \\
+        \row &     & \textbf{(\gt{LETTING} \gn{expr\_query})? $\leftarrow$ NEW} \\
+        \row &     & (\gt{HAVING} \gn{expr\_query})? \\
+        \row &     & ((\gt{OUTER})? (\gt{UNION}\gd\gt{INTERSECT}\gd\gt{EXCEPT}) \gt{ALL}? \gn{sfw\_query})? \\
+        \row &     & ((\gt{ORDER BY} (\gn{expr\_query} (\gt{ASC}\gd\gt{DESC})? \gs{order\_spec}?  \\
+        \row &     & ~~~~~~~~(\gt{,} \gn{expr\_query} (\gt{ASC}\gd\gt{DESC})? \gs{order\_spec}?)*)? ) \\
+        \row &     & ~~~~| \gt{PRESERVE})? \\
+        \row &     & (\gt{LIMIT} \gn{expr\_query})? \\
+        \row &     & (\gt{OFFSET} \gn{expr\_query})? \\ 
+        
+        \hline
+
+        \row & \multicolumn{2}{@{}l@{~}|}{\gn{expr\_query}} \\
+        \row & \gp & \gt{(} \gn{sfw\_query} \gt{)} \\
+        \row & \gd & \gn{path\_expr} \\
+        \row & \gd & \gn{function\_name} \gl{(} (\gn{expr\_query} (\gt{,} \gn{expr\_query})*)? \gl{)} \\
+        \row & \gd & \gt{\{} (\gs{expr\_query}\gt{:}\gn{expr\_query} (\gt{,} \gs{expr\_query}\gt{:}\gn{expr\_query})*)? \gt{\}} \\
+        \row & \gd & \gt{[} (\gn{expr\_query} (\gt{,} \gn{expr\_query})*)? \gt{]} \\
+        \row & \gd & \gl{\ob} (\gn{expr\_query} (\gt{,} \gn{expr\_query})*)? \gl{\cb} \\
+        \row & \gd & \gs{sql\_scalar\_expr} \\
+        \row & \gd & \gs{value\_constant} \\ 
+        
+        \hline
+
+        \row & \multicolumn{2}{@{}l@{~}|}{\gn{path\_expr}} \\
+        \row & \gp & \gs{variable} \\
+%       \row & \gd & \gt{(} \gn{sfw\_query} \gt{)} \\
+        \row & \gd & \gt{(} \gn{expr\_query} \gt{)} \\
+        \row & \gd & \gn{path\_expr} \gt{.} \gs{attr\_name} \\
+        \row & \gd & \gn{path\_expr} \gt{[} \gs{expr\_query} \gt{]} \\
+        \row & \gd & \gn{path\_expr} \gt{.} \gl{*} \\
+        \row & \gd & \gn{path\_expr} \gt{[} \gl{*} \gt{]} \\      
+
+        \hline
+        \row & \textbf{$\downarrow$ NEW} & \\
+        \row & \multicolumn{2}{@{}l@{~}|}{\textbf{\gn{let\_clause}}} \\
+    
+        \row & \gp & \textbf{\gt{LET} \gn{expr\_query} \gt{AS} \gn{variable} (, \gn{expr\_query} \gt{AS} \gn{variable})*} \\
+
+        \hline
+        \row & \textbf{$\downarrow$ NEW} & \\
+        \row & \multicolumn{2}{@{}l@{~}|}{\textbf{\gn{letting\_clause}}} \\
+    
+        \row & \gp & \textbf{\gt{LETTING} \gn{expr\_query} \gt{AS} \gn{variable} (, \gn{expr\_query} \gt{AS} \gn{variable})*} \\
+        
+\hline
+\end{tabular}
+\caption{Figure 3 of the PartiQL specification.}
+\label{figure:query:bnf}
+\end{figure}
+
+\section{\gl{WITH}, \gl{LET} and \gl{LETTING}} 
+\label{sec:with-let-letting}
+This PSR also adds the following section to the PartiQL specificaiton.
+
+\begin{figure}[ht!]
+    \centering
+    \begin{tabular}{lll}
+        \gn{var\_decl} & \gp & \gn{expr\_query} \gt{AS} \gn{binding} \\ 
+        \gn{var\_decl\_list} & \gp & \gn{var\_decl} (, \gn{var\_decl})* \\
+        \gn{with\_clause} & \gp & (to do) \\
+        \gn{let\_clause} & \gp & \gt{LET} \gn{var\_decl\_list} \\
+        \gn{letting\_clause} & \gp & \gt{LETTING} \gn{var\_decl\_list} \\
+    \end{tabular}
+    \caption{BNF Grammar for \gl{WITH}, \gl{LET} and \gl{LETTING}}
+    \label{figure:let}
+\end{figure}
+
+\gl{WITH}, \gl{LET} and \gl{LETTING} allow the user to bind expressions to variable names.  
+Their purpose and semantics are similar, with differences in the context in
+which they execute and the scope of the variables they define.  Figure
+\ref*{figure:query:bnf} shows the contexts in which these clauses are allowed.
+
+\subsection*{Lexical Scoping}
+
+Every \gn{var\_decl} included with \gl{WITH}, \gl{LET} or \gl{LETTING} is
+establishes a new environment which is nested according to the lexical order of
+the \gn{var\_decl\_list}.  The \emph{last} nested environment is then accessible
+in different parts of a \gl{SELECT} query for each \gl{WITH}, \gl{LET} and
+\gl{LETTING} clauses as described in the following sections.
+
+To illustrate the lexcial scoping rules of a \gn{var\_decl\_list} we will use
+the \gl{LET} clause, however these rules are the same for \gl{WITH} and
+\gl{LETTING}.
+
+\bigskip
+
+\noindent Variables defined later in the \gn{var\_decl\_list} \emph{shadow} any
+preceding variables with the same name.  The value of \lstinline{x} is
+\lstinline{42}:
+
+\begin{lstlisting}
+LET 1 AS x, 42 AS x 
+\end{lstlisting}
+
+\noindent Furthermore, shadowing may also occur with variables defined
+\emph{prior} to the \gl{LET} clause.  The result of the
+following query is \lstinline{<< 42 >>}.
+
+\begin{lstlisting}
+SELECT VALUE x FROM << { 'y': 42 } >> AS x LET x = x.y
+\end{lstlisting} 
+
+\noindent Variables defined earlier \gn{var\_decl\_list} cannot access variables defined
+later.  Here, an error occurs inside the definition of \lstinline{y} because
+\lstinline{x} has not been defined yet:
+
+\begin{lstlisting}
+    LET x + 1 AS y, 41 AS x 
+\end{lstlisting}
+
+\subsection{WITH clause}
+
+The \gl{WITH} clause defines variables to be defined \emph{before} query
+evaluation. Variables defined using \gl{WITH} are scoped to the associated
+\gn{expr\_query}.
+
+\bigskip
+
+TODO...
+
+\subsection{LET clause} 
+\label{sec:let-clause}
+
+\gl{LET} is an optional clause of a \gl{SELECT} query that immediately follows
+the \gl{FROM} clause. \gl{LET} executes once for every environment produced by
+the \gl{FROM} clause, creating one nested environment with a newly bound
+variable for every \gn{var\_decl}. The \emph{last} environment produced by the
+\gl{LET} clause is accessible in the remaining clauses of the \gl{SELECT} query
+with certain exceptions defined in section
+\ref*{sec:let-variable-accessibility}.
+
+\subsubsection{Acessibility of variables defined using \gl{LET}}
+\label{sec:let-variable-accessibility}
+
+The \gl{GROUP BY} clause consumes the environments produced by the \gl{FROM} clause and
+produces a new set of environments, which affects the clauses which can access
+the variables defined by \gl{LET}.  Figure
+\ref*{figure:let-variable-accessibility} shows which parts of a \gl{SELECT}
+query can access variables defined by \gl{LET} with and without \gl{GROUP
+BY}.
+
+\begin{figure}[ht]
+\centering
+\begin{tabular}{lcc}    
+    \gl{SELECT} & \multicolumn{2}{c}{Are variables defined with \gl{LET} accessible?}  \\
+    clause & Without \gl{GROUP BY} & With \gl{GROUP BY}  \\
+    \hline
+    \gl{FROM} & No & No \\
+    \gl{LET} & Yes (per lexical scoping) & Yes (per lexical scoping) \\
+    \gl{WHERE} & Yes & Yes \\
+    \gl{GROUP BY} & N/A & Yes \\ 
+    \gl{LETTING} & N/A & No \\
+    \gl{HAVING} & N/A & No \\
+    \gl{ORDER BY} & Yes & No \\
+    \gl{OFFSET} & No & No  \\ 
+    \gl{LIMIT} & No & No \\
+    projection & Yes & No \\
+\end{tabular}
+\caption{Accessibility of variables defined using the \gl{LET} clause.}
+\label{figure:let-variable-accessibility}
+\end{figure}
+
+Note that variables defined by \gl{LET} are not accessible to the \gl{LIMIT} or
+\gl{OFFSET} clauses because those clauses do not have access to the environments
+produced by the \gl{FROM} or \gl{GROUP BY} clauses.
+
+
+\subsection{\gl{LETTING} clause}
+
+\gl{LETTING} is an optional clause of a \gl{SELECT} query that immediately
+follows the \gl{GROUP BY} clause. \gl{LETTING} executes once for every
+environment produced by the \gl{GROUP BY} clause, creating one nested
+environment for every \gn{var\_decl}. The \emph{last} environment produced by
+the \gl{LETTING} clause is accessible in the remaining clauses of the
+\gl{SELECT} query as defined in figure
+\ref*{figure:letting-variable-accessibility}.
+
+Use of \gl{LETTING} without \gl{GROUP BY} is considered to be an error.  
+
+\begin{figure}[ht]
+\centering
+\begin{tabular}{lcc}    
+    \gl{SELECT} & Are variables defined with \\
+    clause & \gl{LETTING} accessible? \\
+    \hline
+    \gl{FROM} & No \\
+    \gl{LET} & No \\
+    \gl{WHERE} & No \\
+    \gl{GROUP BY} & No \\ 
+    \gl{LETTING} & Yes (per lexical scoping) \\
+    \gl{HAVING} & Yes \\
+    \gl{ORDER BY} & Yes \\
+    \gl{OFFSET} & No  \\ 
+    \gl{LIMIT} & No \\
+    projection & Yes \\
+\end{tabular}
+\caption{Accessibility of variables defined using the \gl{LETTING} clause.}
+\label{figure:letting-variable-accessibility}
+\end{figure}
+
+
+\subsection{Behavior of \gl{WITH}, \gl{LET} and \gl{LETTING} and \gl{SELECT *}}
+
+\gl{SELECT *} is unaffected by the use of  \gl{WITH}, \gl{LET} and \gl{LETTING}.
+That is, variables introduced with these clauses are not included in
+\gl{SELECT *} projections.
