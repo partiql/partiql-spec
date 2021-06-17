@@ -73,13 +73,10 @@ PSRs may be submitted by any party.
    the PSR and repeat steps 2-8.
 9. Create a GitHub pull request to revise the formal specification with the
    changes outlined in the PSR.
-
    
 ![PSR Flowchar](psr-process.jpeg)
 
 <!-- 
-
-
 
 To edit this flowchart:
 
