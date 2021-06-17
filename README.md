@@ -15,7 +15,7 @@ To build a PDF, `cd` to `spec` and then:
 $ make
 ```
 
-The PDF will be placed in `spec/main.pdf`.
+The PDF will be placed in `spec/build/main.pdf`.
 
 To clean up the various build files including the PDF:
 

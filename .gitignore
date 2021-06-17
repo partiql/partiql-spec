@@ -9,3 +9,5 @@
 *.fls
 *.toc
 *.fdb_latexmk
+build
+
