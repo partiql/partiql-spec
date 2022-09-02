@@ -1,0 +1,170 @@
+#####################
+# Theming for PDF generation
+# 
+# See http://gist.asciidoctor.org/?github-asciidoctor%2Fasciidoctor-pdf%2F%2Fdocs%2Ftheming-guide.adoc
+#####################
+
+# This theme extends the default theme:
+#     https://github.com/asciidoctor/asciidoctor-pdf/blob/master/data/themes/default-theme.yml
+extends: default
+
+# Font catalog
+font:
+  catalog:
+    merge: true # merge default fonts
+
+    # Serif body font
+    Vollkorn:
+      normal: vollkorn/TTF/Vollkorn-Regular.ttf
+      bold: vollkorn/TTF/Vollkorn-Bold.ttf
+      italic: vollkorn/TTF/Vollkorn-Italic.ttf
+      bold_italic: vollkorn/TTF/Vollkorn-BoldItalic.ttf
+
+    # Slab-serif monospace code font
+    Iosevka:
+      normal: iosevka/iosevka-term-slab-medium.ttf
+      bold: iosevka/iosevka-term-slab-bold.ttf
+      italic: iosevka/iosevka-term-slab-mediumitalic.ttf
+      bold_italic: iosevka/iosevka-term-slab-bolditalic.ttf
+      
+  fallbacks:
+  - M+ 1mn
+      
+
+page:
+  size: Letter
+  margin: [0.65in, 0.65in, 0.5in, 0.65in]  # [top, right, bottom, left]
+  numbering:
+    start-at: cover
+
+  
+base:
+  font:
+    color: #000000
+    size: 10
+    family: Vollkorn
+  line_height: .8
+
+toc:
+  font_size: 10
+  indent: 15
+  line_height: .75
+  dot-leader:
+    levels: 2 3
+  h2:
+    line_height: 2
+    font-style: bold
+
+    
+heading:
+  line_height: 1
+
+  margin:
+    top: 0
+    bottom: 0
+  
+  # h1 is used for part titles (book doctype) or the doctitle (article doctype)
+  h1_font_size: 22
+  # h2 is used for chapter titles (book doctype only)
+  h2_font_size: 14
+
+  # h3 is the top-level numbeed sections
+  h3:
+    font_size: 14
+
+  h4:
+    align: left
+
+
+caption:
+  font:
+    size: 1em
+    style: bold
+  align: center
+  end: bottom
+  
+codespan:
+  font:
+    family: Iosevka
+    color: #202020
+    style: bold
+  
+code:
+  font:
+    family: $codespan_font_family
+    color: $codespan_font_color
+    size: $base_font_size - 2
+  caption:
+    end: bottom
+
+sidebar:
+  border:
+    width: 2
+    color: #D0D0D0
+  align: left
+    
+example:
+  border:
+    width: 2
+    color: #D0D0D0
+  caption:
+    end: bottom
+
+callout-list:
+  text-align: right
+  
+conum:
+  font:
+    family: M+ 1mn
+    color: #9D0006
+    size: $base_font_size
+  line_height: $base_line_height
+  lyphs: filled  
+
+list:
+  text-align: left
+
+
+
+running-content:
+  start-at: title    
+
+header:
+  border-width: 1
+  border-style: solid
+  border-color: #D0D0D0
+  height: 0.35in
+  line-height: .25
+  font_size: 10
+  recto:
+    left:
+      content: '— DRAFT —'
+    right:
+      content: '{section-or-chapter-title}'
+      text-transform: uppercase
+  verso:
+    left:
+      content: $header-recto-left-content
+    right:
+      content: $header-recto-right-content
+      text-transform: uppercase
+      
+footer:
+  border-width: 1
+  border-style: solid
+  border-color: #D0D0D0
+  height: 0.35in
+  line-height: .25
+  font_size: 10
+  recto:
+    left:
+      content: '{revnumber}, {docdate}'
+    right:
+      content: 'Page {page-number} of {page-count}'
+  verso:
+    left:
+      content: $footer-recto-left-content
+    right:
+      content: $footer-recto-right-content
+
+      

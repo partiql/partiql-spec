@@ -1,0 +1,47 @@
+= PartiQL Specification
+The PartiQL Specification Committee
+:doctype: book
+:creator: {author}
+:copyright: Copyright ©2019 Amazon.com Inc. or Affiliates (“Amazon”)
+:docinfo:
+:sectnums:
+:sectnumlevels: 5
+:toc:
+:toclevels: 4
+:toc-title: Contents
+:pagenums:
+:imagesdir: ../build/images
+:title-page:
+:title-logo-image: image:PartiQL_Logo.svg[align=center,pdfwidth=50vw]
+:title-page-background-image: image:bg-draft.svg[]
+:icons: font
+:source-highlighter: pygments
+:pygments-style: colorful
+:listing-caption: Listing
+:example-caption: Example
+:pdfmark: true
+:xrefstyle: short
+:stem: asciimath
+
+// TODO html stylesheet; see https://docs.asciidoctor.org/asciidoctor/latest/html-backend/custom-stylesheet/
+// TODO contribute syntax highlighter for partiql/ion to rogue
+
+
+include::license.adoc[]
+
+include::introduction.adoc[]
+
+include::model.adoc[]
+include::environment.adoc[]
+include::paths.adoc[]
+include::from.adoc[]
+include::select.adoc[]
+include::predsFunctions.adoc[]
+include::where.adoc[]
+include::subqueryCoercion.adoc[]
+include::scoping.adoc[]
+include::groupby.adoc[]
+include::orderby.adoc[]
+include::setops.adoc[]
+include::pivot.adoc[]
+include::schema.adoc[]

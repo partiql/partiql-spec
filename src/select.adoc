@@ -1,0 +1,737 @@
+[[sec:select-values]]
+== `SELECT` clauses
+
+Core PartiQL SFW queries have a `SELECT VALUE` clause (in lieu of
+SQL’s `SELECT` clause) that can create outputs that are collections of
+anything (e.g., collections of tuples, collections of scalars,
+collections of arrays, collections of mixed type elements, etc.)
+<<sec:select-values-core>> describes the `SELECT VALUE` clause.
+
+SQL’s well-known `SELECT` clause can be used as a mere syntactic sugar
+over `SELECT VALUE`, when we consider the top-level query. In
+particular, <<sec:sql-select>> shows that SQL’s `SELECT` is the
+special case where the `SELECT VALUE` produces collections of
+tuples. Furthermore, when `SELECT` is used as a subquery it is coerced
+into a scalar or a tuple, in the ways that SQL coerces the results of
+subqueries.
+
+<<sec:pivot_clause>> describes `PIVOT`, which can be used instead of `SELECT
+VALUE`.  `PIVOT` creates a tuple, with a data dependent number of
+attribute/value pairs, where not only the values but the attributes as
+well could be originating from the data found in the binding tuples.
+
+[[sec:select-values-core]]
+=== `SELECT VALUE` core clause
+
+The `SELECT VALUE` clause inputs a bag of binding tuples or an array
+of binding tuples (from the other clauses of the SQL query) and
+outputs a bag or an array.  For example, if the query only has `SELECT
+VALUE`, `FROM`, and `WHERE` clauses, then the bindings that are output
+by the `WHERE` clause are input by `SELECT VALUE` the clause. Unlike
+SQL, the output of a `SELECT VALUE` clause need not be a bag or array
+of tuples. It is a bag or array of any kind of PartiQL values. For
+example, it may be a bag of integers, or a bag of arrays, etc. Indeed,
+the values may be heterogeneous. For example, the output may even be a
+bag that has both integers and arrays.
+
+The core PartiQL clause:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE e
+----
+
+inputs a bag or an array (depending on the presence or non-presence of
+`ORDER BY`) of binding tuples and outputs respectively a bag or an
+array of values.  Let stem:[p_0] and stem:[p] be the environments of
+the SFW query. For each input binding tuple stem:[b in
+B_"SELECT"^"in"], outputs a value stem:[v], where stem:[p_0, (p ||
+b) |-- e -> v]. Notice that PartiQL expressions stem:[e]
+(<<figure:query:bnf>> lines 17-30) will typically be tuple or array or
+bag constructors (lines 20-22), which enable the construction of
+respective results. In general stem:[e] can be any expression.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+This example illustrates a `SELECT VALUE` that creates a collection of numbers.
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE 2*x.a
+FROM [{'a':1}, {'a':2}, {'a':3}] as x
+----
+
+The result is
+[source%unbreakable, partiql]
+----
+<< 2, 4, 6 >>
+----
+====
+
+
+
+
+[[sec:tuple-constructor]]
+==== Tuple constructors
+
+A _tuple constructor_ is of the form
+
+[source%unbreakable, partiql]
+----
+{a1:e1, ..., an:en}
+----
+
+whereas stem:[a_1...a_n, e_1...e_n] are expressions, potentially being
+themselves constructors.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'a':v.a, 'b':v.b}
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS v
+----
+
+results into
+
+[source%unbreakable, partiql]
+----
+<<{'a':1, 'b':1}, {'a':2, 'b':2}>>
+----
+====
+
+
+
+
+===== Treatment of mistyped attribute names
+
+It is possible that an expression stem:[a_i] that computes an
+attribute name results into a non-string, i.e., a value that is not a
+legitimate attribute name. In such cases, under the permissive mode
+the attribute-value pair will be dismissed. Under the type checking
+mode the query will fail.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+In the permissive mode, the query:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {v.a: v.b}
+FROM [{'a':'legit', 'b':1}, {'a':400, 'b':2}] AS v
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<<{'legit':1}, {}>>
+----
+
+Notice that the attempt to create an
+attribute named `400` failed, thus leading to a tuple with no attributes.
+====
+
+
+
+
+===== Treatment of duplicate attribute names
+
+It is possible that the constructed tuples contain twice or more the
+same attribute name.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {v.a: v.b,  v.c: v.d}
+FROM [{'a':'same', 'b':1, 'c':'same', 'd':2}] AS v
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<<{'same':1, 'same':2}>>
+----
+
+Recall, a `same` path will only pick one of the two values.
+====
+
+
+
+[[sec:array-constructor]]
+==== Array Constructors
+
+An array constructor has the form:
+
+[source%unbreakable, partiql]
+----
+[e1, ..., en]
+----
+
+where stem:[e_1...e_n] are expressions. Notice that the arrays
+produced by such constructor will always have size stem:[n+1].
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE [v.a, v.b]
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS V
+----
+
+results into
+
+[source%unbreakable, partiql]
+----
+<<[1, 1], [2, 2]>>
+----
+====
+
+
+
+In the interest of compatibility to SQL, PartiQL also allows array
+constructors to be denoted with parentheses instead of brackets, when
+there are at least two elements in the array, i.e., stem:[(n+1) >= 2]:
+
+
+[source%unbreakable, partiql]
+----
+(e1, ..., en)
+----
+
+See <<sec:select-coercion-array>> for uses of this feature in SQL
+compatibility.
+
+==== Bag Constructors
+
+A bag constructor has the form:
+
+[source%unbreakable, partiql]
+----
+<<e1, ..., en>>
+----
+
+where stem:[e_1..e_n] are expressions.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE <<v.a, v.b>>
+FROM [{'a':1, 'b':1}, {'a':2, 'b':2}] AS v
+----
+
+results into
+
+[source%unbreakable, partiql]
+----
+<< <<1, 1>>, <<2, 2>> >>
+----
+
+====
+
+
+
+
+[[sec:treatment-missing-select-value]]
+==== Treatment of `MISSING` in `SELECT VALUE`
+
+`MISSING` may behave differently from `NULL` and differently from scalars. The following
+itemizes the behavior of `MISSING` in a number of cases:
+
+===== When constructing tuples
+
+Whenever during tuple construction an attribute value evaluates to
+`MISSING`, then the particular attribute/value is omitted from the
+constructed tuple.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'a':v.a, 'b':v.b}
+FROM [{'a':1, 'b':1}, {'a':2}]
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<<{'a':1, 'b':1}, {'a':2}>>
+----
+====
+
+
+
+===== When constructing arrays
+
+Whenever an array element evaluates to `MISSING`, the resulting array
+will contain a `MISSING`.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE [v.a, v.b]
+FROM [{'a':1, 'b':1}, {'a':2}]
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<<[1, 1], [2, MISSING]>>
+----
+====
+
+
+Upon output serialization the will convert to the symbol that the
+serialization has chosen for serializing .
+
+
+
+===== When constructing bags
+
+Whenever an element of a bag evaluates to `MISSING`, the resulting bag
+will contain a corresponding `MISSING`.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE v.b
+FROM [{'a':1, 'b':1}, {'a':2}]
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<<1, MISSING>>
+----
+
+because `{'a':2}.b` evaluated to `MISSING`.
+====
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE <<v.a, v.b>>
+FROM [{'a':1, 'b':1}, {'a':2}]
+----
+
+results into
+[source%unbreakable, partiql]
+----
+<< <<1, 1>>, <<2, MISSING>> >>
+----
+====
+
+
+[[sec:pivot]]
+=== Pivoting a Collection into a Variable-Width Tuple
+
+The `PIVOT` clause may appear in lieu of `SELECT VALUE`. The `PIVOT` clause outputs a tuple; in
+contrast, a `SELECT VALUE` outputs a collection (bag or array). The syntax is
+
+[source%unbreakable, partiql]
+----
+PIVOT e_v AT e_a
+...
+----
+
+where the other clauses, `...`, are the usual `FROM`,
+`WHERE`, etc. The semantics are similar to `SELECT VALUE`. Let
+stem:[p_0] and stem:[p] be the environments of the SFW query. For each
+input binding tuple stem:[b in B_"PIVOT"^"in"] `PIVOT`, outputs an
+attribute name/value pair stem:[a,v], where the name stem:[a] is the
+result of stem:[e_a] and the value stem:[v] is the result of
+stem:[e_v]. (Technically, stem:[p_0, (p || b) |-- e_a |-> a] and
+stem:[p_0, (p || b) |-- e_v |-> v].) Regardless of whether
+stem:[B_"PIVOT"^"in"] is a bag (i.e., the SFW query did not have an )
+or an array (i.e., the SFW query had an `ORDER BY`), the output tuple
+is unordered. Schema may be applied extantly to obtain an ordered
+tuple.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query:
+
+[source%unbreakable, partiql]
+----
+PIVOT t.price AT t.symbol
+FROM [{'symbol':'tdc', 'price': 31.52}, {'symbol': 'amzn', 'price': 840.05}] AS t
+----
+
+results into the tuple
+
+[source%unbreakable, partiql]
+----
+{'tdc':31.52, 'amzn':840.05}
+----
+
+The treatment of `MISSING` is same to the treatment of `MISSING` by
+`SELECT VALUE` (<<sec:tuple-constructor>>). Namely, whenever an
+attribute name or attribute value evaluates to `MISSING`, the
+corresponding attribute name/value pair will not appear in the tuple.
+====
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+
+[source%unbreakable, partiql]
+----
+PIVOT t.price AT t.symbol
+FROM [{'symbol':25, 'price':31.52}, {'symbol':'amzn', 'price':840.05}] AS t
+----
+
+results into the tuple
+
+[source%unbreakable, partiql]
+----
+{'amzn': 840.05}
+----
+
+since `25` is not a legitimate attribute name.
+====
+
+[[sec:sql-select]]
+=== SQL `SELECT` list as Syntactic Sugar of `SELECT VALUE`
+
+[[sec:select-without-star]]
+==== `SELECT` Without `*`
+
+The SQL syntax:
+
+[source%unbreakable, partiql]
+----
+SELECT e1 AS a1, ..., en AS an
+----
+
+is syntactic sugar for:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'a1':e1, ...., 'an':en}
+----
+
+whereas if the attribute name stem:[a_i] is written as an identifier
+(e.g., `a` or `"a"`) it is replaced by a single-quoted form
+stem:[a_1'] (e.g., `'a'`).
+
+When the expression stem:[e_i] is of the form stem:[e_i`.n] (i.e. a
+path that navigates into tuple attribute stem:[n]), PartiQL follows
+SQL in allowing the attribute name to be optional. In this case,
+
+[source%unbreakable, partiql]
+----
+SELECT ...ei.n...
+----
+
+is equivalent to
+
+[source%unbreakable, partiql]
+----
+SELECT ...ei.n AS n...
+----
+
+In the case that the expression stem:[e_i] is not of the form
+stem:[e_i`.n] the clause:
+
+[source%unbreakable, partiql]
+----
+SELECT ...ei...
+----
+
+is equivalent to
+
+[source%unbreakable, partiql]
+----
+SELECT ...e_i AS a_i...
+----
+
+where stem:[a_i] is a system-generated name. SQL and PartiQL do not
+provide a standard convention.
+
+[[sec:sql-star]]
+==== SQL’s `*`
+
+Consider a query whose `FROM` defines a variable `x` that has no
+schema and the `SELECT` clause includes at least one `x.*`. Let us
+first consider the simpler case where the `SELECT` clause is a single
+item `x`. Then the clause
+
+[source%unbreakable, partiql]
+----
+SELECT x.*
+----
+
+reduces to
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE CASE WHEN NOT x IS TUPLE THEN {'_1': x} ELSE x END 
+----
+
+Notice that PartiQL extends the `.*` to also operate on `x` bindings
+that are not tuples. These are converted to singleton tuples with a
+synthetic name.
+
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT x.*
+FROM [{'a':1, 'b':1}, {'a':2}, 'foo'] AS x
+----
+
+results into
+
+[source%unbreakable, partiql]
+----
+<< {'a':1, 'b':1}, {'a':2}, {'_1':'foo'} >>
+----
+
+Notice that the input has a non-tuple that was converted to a tuple
+with a synthetic attribute name `_1`, this is because the result of a
+traditional `SELECT` is always a container of tuples.
+====
+
+
+
+We generalize the semantics of a `SELECT` list, where at least one of
+the items is a `.*` item, we use the function `TUPLEUNION`. When all
+of stem:[t_1, t_2,...,t_n] are tuples stem:["TUPLEUNION"(t_1,
+t_2,...t_n)] outputs a tuple stem:[t] such that for each attribute
+name/value pair stem:[n:v] of any stem:[t_i], the tuple stem:[t] has a
+respective stem:[n:v]. Notice the possibility that the output stem:[t]
+has duplicate attribute names because either (i) two different inputs
+stem:[t_i] and stem:[t_j] had the same attribute name, or (ii) because
+an input stem:[t_i] already had a duplicate attribute name.
+
+Using `TUPLEUNION`, we rewrite the `SELECT` clause as illustrated by
+the following example, which has two `.*` items and one conventional
+item. The generalization to more items, of either kind should be
+obvious. Notice that if stem:[v_1] (resp. stem:[v_3]) is bound to a
+non-tuple value stem:[v], then it is treated as if it were the tuple
+stem:[{"'_1'":v_1}] (resp. stem:[{"'_2'":v_3}].
+
+
+[source%unbreakable, partiql]
+----
+SELECT v1.*, e2 AS a, v3.*
+----
+
+is equivalent to
+
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE TUPLEUNION(
+       CASE WHEN v1 IS TUPLE THEN v1 ELSE {'_1': v1} END,
+       {'a':e2 },
+       CASE WHEN v3 IS TUPLE THEN v3 ELSE {'_2': v3} END
+)
+----
+
+Notice that the attribute names `'_1'`, `'_2'` have been invented.
+
+=== Examples with combinations of multiple features
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:nesting-readings%unbreakable]
+[subs="+normal"]
+====
+
+A SFW subquery may appear in the clause of a query, enabling the
+creation of nested results.
+
+Consider the database
+
+[source%unbreakable, partiql]
+----
+  sensors :  [
+         {'sensor':1},
+         {'sensor':2}
+  ]
+  logs:  [
+         {'sensor':1, 'co':0.4},
+         {'sensor':1, 'co':0.2},
+         {'sensor':2, 'co':0.3}
+  ]
+----	  
+
+The query
+
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'sensor':  s.sensor,
+              'readings': (SELECT VALUE l.co
+			   FROM logs AS l
+			   WHERE l.sensor = s.sensor)
+             }
+FROM sensors AS s
+----
+
+results into
+
+
+[source%unbreakable, partiql]
+----
+<<
+   {'sensor':1, 'readings':<<0.4, 0.2>>},
+   {'sensor':2, 'readings':<<0.3>>}
+>>
+----
+
+Notice that each tuple of the result has a nested array, which has been
+created by the inner `SELECT VALUE`.
+
+The query could also have been written using `SELECT` (instead of `SELECT VALUE`) for the outer
+query, as follows:
+
+[source%unbreakable, partiql]
+----
+SELECT s.sensor AS sensor,
+       ( SELECT VALUE l.co
+         FROM logs AS l
+         WHERE l.sensor = s.sensor) AS readings
+FROM sensors AS s
+----
+
+Furthermore, the `AS sensor` could be ommitted (as in SQL).
+====
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+This example shows how the combined action of `UNPIVOT` and `PIVOT` enables to analyze the
+attribute names. Consider the following database that has a sequence of
+measurements of various gases.
+
+[source%unbreakable, partiql]
+----
+sensors : [
+    {'no2':0.6, 'co':0.7, 'co2':0.5},
+    {'no2':0.5, 'co':0.4, 'co2':1.3}
+]
+----
+
+// TODO remove footnote?
+
+The following query keeps only the carbon oxides. footnote:[The query
+author is pretty weak in chemistry and cannot enumerate the carbon
+oxides explicitly in their query.]
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE (PIVOT v AT g
+              FROM UNPIVOT r AS v AT g
+              WHERE g LIKE 'co%')
+FROM sensors AS r
+----
+
+The result is
+
+[source%unbreakable, partiql]
+----
+[
+    {'co':0.7, 'co2':0.5},
+    {'co':0.4, 'co2':1.3}
+]
+----
+
+Intuitively, the `UNPIVOT` turns every instance of the tuple `t` into
+a collection.  The `WHERE` filters the collections. The `PIVOT` pivots
+the filtered collections back into tuples.
+====

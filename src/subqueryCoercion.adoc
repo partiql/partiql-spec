@@ -1,0 +1,205 @@
+[[sec:subquery-coercion]]
+== Coercion of subqueries
+
+In PartiQL, as is the case with SQL as well, expressions may involve
+SFW subqueries (<<#figure:query:bnf>> line 17). PartiQL SFW subqueries
+are enclosed in parentheses (i.e., identical to SQL). For
+compatibility with SQL, a SFW subquery starting with a `SELECT` clause
+(as opposed to a subquery starting with `SELECT VALUE` or `PIVOT`)
+coerces into a scalar or into an array, depending on the context. The
+following cases replicate SQL’s coercing behavior and analyze in which
+cases the result of a subquery coerces into scalar and in which cases
+they coerce into arrays.
+
+An PartiQL extension with respect to SQL is that, in the permissive
+mode, subqueries that fail to coerce to the required type (scalar or
+tuple) still run, as opposed to failing. They simply omit from the
+results the data that correspond to the coercion failures.
+
+[[sec:select-coercion-scalar]]
+=== Coercion of a `SELECT` subquery into a scalar
+
+In each of the following cases a SFW subquery coerces into a scalar
+
+* if it appears as the rhs of a comparison operator (`=`, `>`, etc)
+where the lhs is not an array literal. And, vice versa, if it appears
+as the lhs of a comparison operator where the rhs is not an array
+literal. (If it is the lhs of a comparison operator where the lhs is
+an array literal, it coerces into array, per
+<<sec:select-coercion-array>>.)
+
+* if it is an SFW subquery expression that (a) is not the collection
+expression of a `FROM` clause item and (b) is not the rhs of an
+`IN`. (If it is the rhs of an `IN` then it should not be coerced.)
+
+Essentially, a subquery that is coerced may appear in all clauses
+except the `FROM`. For example, it may be a `SELECT` subquery stem:[s]
+that appears as an item of a `SELECT`, `SELECT VALUE`, or `PIVOT`
+clause. Or it may be a subexpression of an expression that appears in
+`SELECT`, `SELECT VALUE` , or `PIVOT` clause. Or it may be a
+subexpression of the `WHERE` clause expression, as long as it is not
+the rhs of an `IN`. In any of these cases the result of the subquery
+stem:[s] is cast into a scalar.
+
+Technically, the subquery stem:[s] (which uses `SELECT`) is rewritten
+into an equivalent subquery stem:[s'] that utilizes `SELECT VALUE`, by
+following the steps of <<sec:sql-select>>. Then the result of
+stem:[s'] is cast into a scalar by applying the function
+stem:["COLL_TO_SCALAR"(s')].
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The SQL query
+
+
+[source%unbreakable, partiql]
+----
+SELECT v.foo,
+       (SELECT w.bar
+        FROM someDataSet w
+        WHERE w.sth = v.sthelse) AS bar
+FROM anotherDataSet v
+----
+
+is rewritten into
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {
+    'foo':  v.foo
+    'bar':  COLL_TO_SCALAR(SELECT VALUE {'bar':  w.bar}
+                           FROM someDataSet w
+                           WHERE w.sth = v.sthelse)
+}
+FROM anotherDataSet v
+----
+====
+
+As is the common semantics of PartiQL in the permissive mode, when
+`COLL_TO_SCALAR` fails to cast the subquery into a scalar, it outputs
+`MISSING`. The inputs that are coerced into scalars are the ones that
+SQL prescribes: When the input is a collection consisting of a single
+tuple with a single attribute, the input is coerced into a scalar. All
+other inputs to `COLL_TO_SCALAR` lead to `MISSING`.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:coercion-failure%unbreakable]
+[subs="+normal"]
+====
+In this example, in one instance the inner `SELECT` evaluates to a
+collection with more than one element. Because the `COLL_TO_SCALAR`
+function produces a `MISSING` instead of failing, the query works.
+
+Consider the tables
+
+[source%unbreakable, partiql]
+----
+customers :  [
+    {'id':1, 'name':'Mary'},
+    {'id':2, 'name':'Helen'},
+    {'id':1, 'name':'John'}
+]
+orders :  [
+    {'custId':1, 'name':'foo'},
+    {'custId':2, 'name':'bar'}
+]
+----
+
+The following query would fail in SQL, because there are two customer
+tuples with the same id. Of course, in a well-designed SQL database that
+has a primary key or uniqueness constraint on the id, there would not be
+two customers with the same id. However, lack of constraints is typical
+in the data targeted by PartiQL. This query runs in the permissive mode
+of PartiQL.
+
+[source%unbreakable, partiql]
+----
+SELECT o.name AS orderName,
+       (SELECT c.name FROM customers c WHERE c.id=o.custId) AS customerName
+FROM orders o
+----
+
+The result is
+
+
+[source%unbreakable, partiql]
+----
+<< {'orderName':'foo'}, {'orderName':'bar', 'customerName':'Helen'} >>
+----
+
+Notice the missing `'customerName'` in the first tuple.
+====
+
+As in SQL, an implementation with static type checks will be able to
+detect and warn that, in certain cases, a coercion will always fail and
+produce `MISSING`.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The following `SELECT` clause is guaranteed to produce tuples with
+`bar` and `bar2`. Thus it cannot coerce into scalar.
+
+[source%unbreakable, partiql]
+----
+SELECT w.bar1 AS bar1, w.bar2 AS bar2
+FROM someDataSet w
+----  
+
+Static type analysis can infer that the nested query above will
+deliver tuples consisting of `bar` and `bar2`. Thus, even before
+accessing any data, it can warn the user that this query is erroneous.
+====
+
+[[sec:select-coercion-array]]
+=== Coercion of a `SELECT` subquery into an array
+
+An `SELECT` SFW subquery coerces into an array when it is the rhs
+(respectively, lhs) of a comparison operator whose other argument is
+an array. footnote:[Recall, in the interest of compatibility to SQL, PartiQL
+allows array literals to be denoted with parentheses instead of
+brackets (see <<sec:array-constructor>>).]
+
+The reduction of a `SELECT` subquery to the PartiQL is exhibited by the following
+example.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The SQL query
+
+[source%unbreakable, partiql]
+----
+SELECT v.foo
+FROM anotherDataSet v
+WHERE (v.a, v.b) = (SELECT w.c, w,d
+                    FROM someDataSet w
+                    WHERE w.sth = v.sthelse)
+----  
+
+is rewritten into
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'foo':  v.foo}
+FROM anotherDataSet v
+WHERE (v.a, v.b) = (SELECT VALUE [w.c, w,d]
+                    FROM someDataSet w
+                    WHERE w.sth = v.sthelse)
+----
+====

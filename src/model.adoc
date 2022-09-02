@@ -1,0 +1,164 @@
+[[sec:model]]
+== Data Model
+
+.EBNF Grammar for PartiQL Values
+[#figure:values:bnf]
+[source%linenums&unbreakable, ebnf]
+----
+value            = absent_value
+                 | scalar_value
+                 | tuple_value
+                 | collection_value ;
+absent_value     = "NULL"
+                 | "MISSING" ;
+scalar_value     = "`", ? ion literal ?, "`"
+                 | ? sql literal ? ;
+tuple_value      = "{" [ string_value, ":", value { ",", string_value, ":", value }] "}" ; <1>
+collection_value = array_value
+                 | bag_value ;
+array_value      = "[", [ value , { "," , value } ], "]" ;
+bag_value        = "<<", [ value , { "," , value } ], ">>" ;
+----
+<1> `value` cannot be `MISSING`
+
+<<#figure:values:bnf>> shows the BNF grammar for PartiQL values.  A
+PartiQL database generally contains one or more PartiQL _named
+values_. A _name_, is an identifier, such as a table name, that is
+associated with a PartiQL value.  <<#section:environment-and-sfw>>
+defines what these names are, and how SQL qualified names work, in
+detail.
+
+The type of a value is _absent_, _scalar_, _tuple_, or _collection_.
+Further subtyping applies to scalars, tuples, and collections.  We
+will often use the name _complex value_ to refer to any non-scalar and
+non-absent value.  That is, complex values include _tuples_ and
+_collections_.  A tuple is a set of attribute name/value pairs, where
+each name is a string (as in SQL).  A tuple in the data model is
+unordered.  A conventional SQL tuple is an ordered tuple since the
+schema dictates the order of the attributes and certain SQL operations
+may use the order—support for this is described in detail in <<sec:schema>>
+<<sec:schema>>.
+
+PartiQL’s data model extends SQL to Ion’s type system to cover
+schema-less and nested data.  Such values can be directly quoted with
+``````` quotes.
+
+Unlike SQL, PartiQL allows the possibility of duplicate attribute
+names, in the interest of compatibility with non-strict JSON/Ion
+datasets.  However PartiQL does not encourage duplicate attribute
+names; navigation into tuples with the conventional dot notation
+(<<section:paths>>) is tuned to the assumption that the attribute
+names are unique.
+
+A _collection_value_ is either an ordered or unordered (EBNF lines
+10-11) _collection_. Both arrays and bags may contain duplicate
+elements. An array is ordered (similar to a JSON array or Ion list)
+and each element is accessible by its ordinal position.  (See
+specifics of access by position in <<#section:paths>>.) Arrays are
+delimited with `[` and `]`.  For example, the value of the attribute
+`configurationItems` in <<#figure:values:example-value>> is an
+array. Arrays have size, which is not explicitly denoted but is
+implied by the number of elements in the array. For example, the size
+of the `configurationItems` in <<#figure:values:example-value>> is 2.
+The first element of an array corresponds to index 0; the last element
+corresponds to index size minus one.
+
+In contrast, a bag is unordered (similar to a SQL table) and its
+elements cannot be accessed by ordinal position. Bags are denoted with
+and `<<` and `>>`.
+
+Finally, note that PartiQL has two kinds of absent values:`NULL` and
+`MISSING`. The motivation is as follows: Unlike SQL, where a query
+that refers to a non-existent attribute name is expected to fail
+during compilation, in semi-structured data one expects a query to
+operate even if some of the tuples do not define some of the
+attributes that the query’s paths mention. Hence PartiQL contains the
+special value `MISSING` (EBNF line 6), which is the path result in
+cases where navigation fail to bind to any information. The
+distinction between `MISSING` and `NULL` enables retaining the
+original distinction between a missing attribute and a null-valued
+attribute. The utility of `MISSING` (as opposed to just having `NULL`)
+will become further apparent when navigation into semi-structured data
+and construction of semi-structured results is discussed.
+
+The value `MISSING` may not appear as an attribute value. Notice that
+in the interest of readability, the syntax of <<#figure:values:bnf>>
+does exclude these cases; rather the "````value``` cannot be `MISSING``"
+call-out indicates that `MISSING` cannot appear as an attribute value.
+
+[discrete]
+=== Comparisons to the relational model
+
+In summary, the PartiQL data model extended the SQL data model in the
+following ways:
+
+1. The elements of an array/bag can be any kind of value—not just
+tuples.  Furthermore they can be heterogeneous. That is, there are no
+restrictions between the elements of an array/bag. For example, the
+two tuples in `configurationItems` array of are _heterogeneous_
+because: (i) each tuple has a different set of attributes (for
+example, the second tuple has `configurationStateId` while the first
+does not), (ii) an attribute of a first tuple may map to some type
+while the same attribute in a second tuple may map to another type.
+
+2. More broadly, unlike SQL where the values are tables that have
+homogeneous tuples that have scalars, PartiQL complex values are
+_arbitrary compositions of arrays, bags and tuples_. E.g., the top
+level value of <<#figure:values:example-value>> is a tuple and the
+`configurationItems` array has two heterogeneous tuples.  Note that in
+this example, the top-level name refers to a value that is _not_ a bag
+(e.g. a table).
+
+3. There is a distinction between null-valued attributes and missing
+attributes.
+
+4. PartiQL makes an explicit distinction between arrays and bags,
+where the former have order and their elements can be addressed by
+ordinal position. footnote:[Despite the "`SQL table is a bag`" and
+"`the results of an SQL query is a table`" statements of SQL
+textbooks, SQL also recognizes that the result of a query that has an
+`ORDER BY` is a list, i.e., an ordered collection of tuples.]
+
+.An Example of a PartiQL Value
+[#figure:values:example-value]
+[source%linenums%unbreakable, partiql]
+----
+{
+  'fileVersion':'1.0',
+  'configurationItems':[
+    {
+        'configurationItemCaptureTime': `2016-08-03T08:56:52.415Z`,
+        'resourceId':'h-0337bfe6793cf9e0c',
+        'configuration':{
+          'hostId':'h-0337bfe6793cf9e0c',
+          'hostProperties':{
+              'sockets':2,
+              'cores':20,
+              'totalVCpus':32,
+              'instanceType':'m4.medium'
+          },
+        'tags':{
+          'CostCenter':'Prod'
+        },
+    },
+    {
+        'configurationItemCaptureTime':`2016-08-03T09:41:56.906Z`,
+        'resourceId':'h-0337bfe6793cf9e0c',
+        'configurationStateId':3,
+        'configuration':{
+          'hostId':'h-0337bfe6793cf9e0c',
+          'autoPlacement':'off',
+          'hostProperties':{
+              'sockets':2,
+              'cores':20,
+              'totalVCpus':32,
+              'instanceType':'m3.medium'
+          },
+        'tags':{
+        },
+    }
+  ]
+}
+----
+
+//  LocalWords:  PartiQL

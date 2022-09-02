@@ -1,0 +1,46 @@
+[[sec:where]]
+== `WHERE` clause
+
+The `WHERE` clause inputs the bindings that have been produced from
+the `FROM` clause and outputs the ones that satisfy its condition.
+
+The boolean predicates follow SQL’s 3-valued logic. Recall, PartiQL
+has two kinds of absent values: `NULL` and `MISSING`. As far as the
+boolean connectives and `IS NULL` are concerned a `NULL` input and a
+`MISSING` input behave identically. For example, `MISSING AND TRUE` is
+equivalent to `NULL AND TRUE`: they both result into `NULL`.
+
+For the semantics of equality and of other functions, see
+<<sec:preds-and-fns>>.
+
+Alike SQL, when the expression of the `WHERE` clause expression
+evaluates to an absent value or a value that is not a Boolean, PartiQL
+eliminates the corresponding binding.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+The result of
+
+[source%unbreakable, partiql]
+----
+SELECT VALUES v.a
+FROM [{'a':1, 'b':true}, {'a':2, 'b':null}, {'a':3}] v
+WHERE v.b
+----
+
+is
+
+[source%unbreakable, partiql]
+----
+<< 1 >>
+----
+====
+
+The predicate `IS MISSING` allows distinguishing between `NULL` and
+`MISSING`: `NULL IS MISSING` results to false; `MISSING IS MISSING`
+results to true.

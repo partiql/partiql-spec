@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- crafted with trigonometry -->
+
+<svg width="1000" height="1000" viewBox="-475 -485 1025 1015"
+     xmlns="http://www.w3.org/2000/svg"
+     xmlns:svg="http://www.w3.org/2000/svg">
+
+  <g id="logo">
+    <g id="orbit">
+      <!--
+	  Path made from
+	  Circle Arc from 315 degrees to 278 degrees (Inset is 310 degrees)
+	  Inner Radius: 405, Outer Radius: 455
+      -->
+      <path
+	  fill="#000000"
+	  d="
+	     M 286 286
+
+	     A 405 405 0 0 0 405 0
+	     A 405 405 0 0 0 0 -405
+	     A 405 405 0 0 0 -405 0
+	     A 405 405 0 0 0 -56 401
+
+	     v 50
+	     
+	     A 455 455 0 0 1 -455 0
+	     A 455 455 0 0 1 0 -455
+	     A 455 455 0 0 1 455 0
+	     A 455 455 0 0 1 322 322
+	     
+	     L 329 275
+	     
+	     Z
+	     "
+	  />
+      
+      <circle
+	  cx="0"
+	  cy="430"
+	  r="55"
+	  fill="none"
+	  stroke="#000000"
+	  stroke-width="30"
+	  />
+      
+    </g>
+    <g id="q">
+      <circle
+	  cx="0"
+	  cy="0"
+	  r="170"
+	  fill="none"
+	  stroke="#000000"
+	  stroke-width="50"
+	  />
+
+      <path
+	  fill="#000000"
+	  stroke-width="0"
+	  d="
+	     M 68 32
+	     l 132 132
+	     v 285
+	     h 325
+	     v 50
+	     h -375
+	     v -310
+	     L 32 68
+	     Z
+	     "
+	  />
+    </g>
+  </g>
+  
+</svg>

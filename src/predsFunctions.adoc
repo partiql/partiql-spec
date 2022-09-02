@@ -1,0 +1,164 @@
+[[sec:preds-and-fns]]
+== Functions
+
+The semantics of predicates (i.e., functions returning booleans) and
+(non-aggregate) functions in PartiQL are identical to those of SQL when
+their inputs are those that are allowed by SQL. PartiQL makes the
+following extensions for the cases where the inputs are beyond those
+allowed by SQL.
+
+[[sec:fns-with-wrong-inputs]]
+=== Inputs with wrong types:
+
+Unlike SQL where typing issues can be detected during query compilation,
+the permissive option of PartiQL has to define semantics for the case
+where the inputs of a function are not compatible with the
+function/predicate arguments. Furthermore, PartiQL facilitates
+propagating missing input attributes to respective missing output
+attributes.
+
+Alike SQL, all functions have input argument types that they
+conform to.  For example, the function `log` expects numbers. All
+functions return `MISSING` when they input data whose types do not
+conform to the input argument types.  Since no function (other than
+`IS MISSING`) has `MISSING` as an input argument type, it follows that
+all functions return `MISSING` when one of their inputs is `MISSING`.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:missing-on-wrong-types%unbreakable]
+[subs="+normal"]
+====
+The query
+
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'a':3*v.a, 'b':3*(CAST v.b AS INTEGER)}
+FROM [ {'a':1, 'b':'1'}, {'a':2} ] v
+----
+
+results into
+
+[source%unbreakable, partiql]
+----
+<< {'a':3, 'b':3}, {'a':6 } >>
+----
+
+Notice how the missing `b` attribute in the input leads to a
+respective missing attribute in the output.
+====
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+Each one of these expressions returns `MISSING`:
+
+  * `5 + MISSING`
+  * `5 > 'a'`
+  * `NOT {a:1}`
+====
+
+
+
+
+[[sec:equality]]
+==== Equality
+
+Equality never fails in the type-checking mode and never returns
+`MISSING` in the permissive mode. Instead, it can compare values of
+any two types, according to the rules of the PartiQL type system. For
+example, `5 = 'a'` is `false`.
+
+Since PartiQL variables may bind to composite values (collections,
+tuples), PartiQL extends the semantics of equality for these cases. In
+particular, equality in PartiQL is _deep equality_, defined as follows:
+
+
+. Given two arrays stem:[x] and stem:[y] that have the same length
+stem:[l], the result of stem:[x=y] is the result of
++
+[stem]
+++++
+"eqg"(x[0], y[0]) ^^ ... ^^ "eqg"(x[l], y[l])
+++++
++
+The `eqg`, unlike the `=`, returns true when a `NULL` is compared to a
+`NULL` or a `MISSING` to a `MISSING`. When the arrays stem:[x] and
+stem:[y] do not have the same length, the stem:[x=y] is `false`.
+
+
+. A similar straightforward equality applies to tuples: They have to
+have the same attributes. Then equality stem:[t_1 = t_2] is true if
++
+[stem]
+++++
+"eqg"(t_1.a_1, t_2.a_1) ^^ ... ^^ "eqg"(t_1.a_n, t_2.a_n)
+++++
++
+where stem:[a_1, ..., a_n] are the attributes that appear in
+stem:[t_1] and stem:[t_2].
+
+
+. Equality for bags is similarly straightforward: Two bags stem:[x]
+and stem:[y] are equal if and only if every element stem:[e] of
+stem:[x] that appears stem:[n] times in stem:[x] also appears stem:[n]
+times in stem:[y].
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+The following are true:
+[source%unbreakable, partiql]
+----
+<<3, 2, 4, 2 >> = <<2, 2, 3, 4 >>
+----
+[source%unbreakable, partiql]
+----
+{'a':1, 'b':2} = {'b':2, 'a':1}
+----
+[source%unbreakable, partiql]
+----
+{'a':[0,1], 'b':2} = {'b':2, 'a':[0,1]}
+----
+
+The following are false:
+[source%unbreakable, partiql]
+----
+<<3, 4, 2 >> = <<2, 2, 3, 4 >>
+----
+[source%unbreakable, partiql]
+----
+{'a':1, 'b':2} = {'a':1}
+----
+[source%unbreakable, partiql]
+----
+{'a':[0,1], 'b':2} = {'b':2, 'a':[0,1,2]}
+----
+
+The following are also false.
+[source%unbreakable, partiql]
+----
+{'a':1, 'b':2} = {'a':1}
+----
+[source%unbreakable, partiql]
+----
+{'a':1, 'b':2} = {'a':1, 'b':null}
+----
+[source%unbreakable, partiql]
+----
+{'a':[0,1], 'b':2} = {'b':2, 'a':[null,1]}
+----
+
+====
