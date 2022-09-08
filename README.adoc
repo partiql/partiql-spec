@@ -1,6 +1,10 @@
 = PartiQL Language Specification
 
-This is the link:AsciiDoc[https://asciidoc.org/] source for the link:https://partiql.org/[PartiQL] specification.
+This is the link:https://asciidoc.org/[AsciiDoc] source for the link:https://partiql.org/[PartiQL] specification.
+
+== Editing
+
+AsciiDoc is supported by link:https://docs.asciidoctor.org/asciidoctor/latest/tooling[major repository hosting providers and many IDEs].
 
 == How to Build the Spec
 
@@ -51,6 +55,7 @@ unzip fonts/iosevka.zip -d fonts/iosevka
 [source,shell]
 .terminal
 ```
+brew tap homebrew/cask-fonts 
 brew install glib gdk-pixbuf cairo pango cmake font-computer-modern
 
 cd ~/Library/Fonts

@@ -38,7 +38,7 @@ namespace :spec do
 
   task :pdf => :prereqs do
     begin
-      theming = "-a pdf-themesdir=src/themes -a pdf-theme=basic -a pdf-fontsdir=build/fonts"
+      theming = "-a pdf-themesdir=src/themes -a pdf-theme=basic -a pdf-fontsdir=fonts"
       stem = "-r asciidoctor-mathematical -a mathematical-format=svg"
       pdf_params = "-a compress"
       puts "Converting to PDF..."
