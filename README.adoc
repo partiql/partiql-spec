@@ -1,6 +1,6 @@
 = PartiQL Language Specification
 
-This is the LaTeX source for the [PartiQL] specification.
+This is the link:AsciiDoc[https://asciidoc.org/] source for the link:https://partiql.org/[PartiQL] specification.
 
 == How to Build the Spec
 
