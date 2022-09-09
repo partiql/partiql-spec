@@ -1,0 +1,419 @@
+[[section:paths]]
+== Path Navigation
+
+[discrete]
+==== Tuple path navigation
+
+A _tuple path navigation_ stem:[t.a] from the tuple stem:[t] to its
+attribute stem:[a] (<<#figure:query:bnf>> line 27) returns the value
+of the attribute stem:[a]. (We discuss below the corner case where a
+tuple has multiple attributes `a`.) stem:[t] is an expression but
+stem:[a] is always an identifier (<<#figure:names:bnf>> lines
+5-6). For example:
+
+[subs="+normal"]
+[%unbreakable]
+====
+[source, partiql]
+----
+{'a': 1, 'b':2}.a
+----
+stem:[<=>]
+[source, partiql]
+----
+{'a': 1, 'b': 2}."a"
+----
+stem:[->]
+[source,partiql]
+----
+1
+----
+====
+
+Even if there were a variable `a`, bound to `'b'`, the result of the
+above expression would still be `1`, because the identifier `a` (or
+`"a"`) is interpreted as the "`look for the attribute named `a` `"
+when it follows the dot in a tuple path navigation. The semantics of
+tuple path navigation do not depend on whether the tuple is ordered or
+unordered by schema.
+
+[discrete]
+==== Array navigation
+
+An _array navigation_ stem:[a\[i\]] returns the stem:[i]-th element
+_when_ it is applied on an array stem:[a] (<<#figure:query:bnf>> line
+28) and stem:[i] is an expression that evaluates into an integer. Both
+stem:[a] and stem:[i] are expressions. For example:
+
+[subs="+normal"]
+[%unbreakable]
+====
+[source, partiql]
+----
+[2, 4, 6][1+1]
+----
+stem:[->]
+[source,partiql]
+----
+6
+----
+====
+
+[discrete]
+==== Tuple navigation with array notation
+
+The expression stem:[a\[s\]] is a shorthand for the tuple path
+navigation stem:[a.s] when the expression stem:[s] is either (a) a
+string literal or (b) an expression that is explicitly `CAST` into a
+string. For example:
+
+[subs="+normal"]
+[%unbreakable]
+====
+[source, partiql]
+----
+{'a': 1, 'b': 2}['a']
+----
+stem:[<=>]
+[source, partiql]
+----
+{'a': 1, 'b': 2}.'a'
+----
+stem:[->]
+[source,partiql]
+----
+1
+----
+====
+
+Similarly:
+
+[subs="+normal"]
+====
+[source, partiql]
+----
+{'attr': 1, 'b':2}[CAST('at' || 'tr' AS STRING)]
+----
+stem:[->]
+[source,partiql]
+----
+1
+----
+====
+
+
+If stem:[s] is not a string literal or an expression that is cast into
+a string, then stem:[a\[s\]] is evaluated as an array path
+navigation. Notice that in the absence of an explicit cast, the
+navigation stem:[a\[e\]] evaluates as an array navigation, even if
+stem:[e] ends up evaluating to a string. For example, let us assume
+that the variable `v` is bound to `at` and the variable `w` is bound
+to `tr`.  Still, the expression:
+
+// TODO determine if cases where static type is known requires a CAST.
+
+[source, partiql]
+----
+{'attr': 1, 'b':2}[v || w]
+----
+
+does not evaluate to `1`. It is treated as an array navigation with wrongly
+typed index and it will return `MISSING`, for reasons explained below.
+
+[discrete]
+==== Composition of navigations
+
+Notice that consecutive tuple/array navigations (e.g. `r.no[1]`)
+navigate deeply into complex values. Notice further that paths
+consisting of plain tuple and array path navigations evaluate to a
+unique value.
+
+// TODO verify that this is correct for unordered tuples.
+
+[discrete]
+==== Tuple navigation in tuples with duplicate attributes
+
+When the tuple `t` has multiple attributes `a`, the tuple path navigation `t.a` will
+return the first instance of `a`. Note that for tuples whose order is
+defined by schema, this is well-defined, for unordered tuples, it is
+implementation defined which attribute is returned in _permissive mode_
+or an error in _type checking mode_, which is described in
+<<sec:tuple-path-on-wrong>>.
+
+If one wants to access all instances of `a`, she should use the
+`UNPIVOT` feature instead (see <<sec:unpivot>>). For example, the
+following query returns the list of all `a` values in a tuple `t`.
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE v
+FROM UNPIVOT t AS v AT attr
+WHERE attr = 'a'
+----
+
+[[sec:tuple-path-on-wrong]]
+=== Tuple path evaluation on wrongly typed data
+
+In the case of tuple paths, since PartiQL does not assume a schema, the
+semantics must also specify the return value when:
+
+1. stem:[t] is not a tuple (i.e., when the expression stem:[t] does
+not evaluate into a tuple), or
+
+2. stem:[t] is a tuple that does not have an stem:[a] attribute.
+
+[discrete]
+==== Permissive mode
+
+PartiQL can operate in a permissive mode or in a conventional type
+checking mode, where the query fails once typing errors (such as the
+above mentioned ones) happen. In the permissive mode, typing errors are
+typically neglected by using the semantics outlined next.
+
+In all of the above cases PartiQL returns the special value
+`MISSING`. Recall, the `MISSING` is different from `NULL`. The
+distinction enables PartiQL to be able to distinguish between a tuple
+(JSON object) that lacked an attribute `a` and a tuple (JSON object)
+whose `a` attribute was `NULL`. This distinction, coupled with
+appropriate features on how result tuples are constructed (see
+`SELECT` clause in <<sec:select-values>>), enables PartiQL to easily
+preserve (when needed) the distinction between absent attribute and
+null-valued attribute.
+
+For example, the expression ` 'not a tuple'.a ` and the expression
+`{'a':1, 'b':2}` evaluate to `MISSING`.
+
+The above semantics apply regardless of whether the tuple navigation
+is accomplished via the dot notation or via the array notation. For
+example, the expression `{'a':1, 'b':2}['noSuchAttribute']` will also
+evaluate to `MISSING`.
+
+[discrete]
+==== Type checking mode
+
+In the type checking mode and in the absence of schema, PartiQL will
+fail when tuple path navigation is applied on wrongly typed data.
+
+[[sec:schema-in-tuple-path]]
+==== Role of schema in type checking
+
+In the presence of schema, PartiQL may return a compile-time error when
+the query processor can prove that the path expression is guaranteed to
+_always_ produce `MISSING`. The extent of error detection is
+implementation-specific.
+
+For example, in the presence of schema validation, an PartiQL query
+processor can throw a compile-time error when given the path expression
+`{a:1, b:2}.c`. In a more important and common case, an PartiQL implementation can
+utilize the input data schema to prove that a path expression _always_
+returns `MISSING` and thus throw a compile-time error. For example, assume that `sometable` is
+an SQL table whose schema does not include an attribute `c`. Then, an
+PartiQL implementation may throw a compile-time error when evaluating
+the query:
+
+[source, partiql]
+----
+SELECT t.a, t.c FROM sometable AS t
+----
+
+Apparently, such an PartiQL implementation is fully compatible with the
+behavior of an SQL processor. Generally, if a rigid schema is explicitly
+present, a tuple path navigation error can be caught during compilation
+time; this is the case in SQL itself, where referring to a non-existent
+attribute leads to a compilation error for the query.
+
+Notice that operating with schema validation may not prevent all tuple
+path navigations from being applied to wrongly typed data. The choice
+between permissive mode versus type checking mode dictates what happens
+next in these cases: If permissive, the tuple path navigation evaluates
+into `MISSING`. If in type checking mode, the query fails.
+
+[[sec:array-on-wrong]]
+=== Array navigation evaluation on wrongly typed data
+
+In the permissive mode, an array navigation evaluation
+stem:[a\[i\]] will result into `MISSING` in each of the following cases:
+
+* stem:[a] does not evaluate into an array, or
+* stem:[i] does not evaluate into a positive integer within the
+array’s bounds.
+
+For example, `[1,2,3][1.0]` evaluates to `MISSING` since `1.0` is not
+an integer - even though it is coercible to an integer.
+
+In type checking mode, the query will fail in each one of the cases
+above.
+
+[[sec:deep-navigation]]
+=== Additional Path Syntax
+
+The following additional path functionalities are explained by reduction
+to the basic tuple navigation and array navigation.
+
+[discrete]
+==== Wildcard steps
+
+The expression stem:[e\[**\]] reduces to (i.e., is equivalent to):
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE v FROM e AS v
+----
+
+where stem:[v] is a _fresh variable_, i.e., a variable that does not
+already appear in the query. Similarly, when the expression stem:[e.**]
+is not a `SELECT` clause item of the form stem:[t.*], where stem:[t] is a
+variable, it reduces to:
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE v FROM UNPIVOT e AS v
+----
+
+where stem:[v] is a fresh variable. An expression stem:[t.**], where
+stem:[t] is a variable and the expression appears as a `SELECT` clause
+item, is interpreted according to the `SELECT` clause semantics
+(<<sec:sql-star>>).
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The expression:
+
+[source, partiql]
+----
+[1,2,3][*]
+----
+stem:[<=>]
+[source, partiql]
+----
+SELECT VALUE v FROM [1, 2, 3] AS v
+----
+stem:[->]
+[source, partiql]
+----
+<< 1,2,3 >>
+----
+
+The expression:
+
+[source, partiql]
+----
+{'a':1, 'b':2}.*
+----
+stem:[<=>]
+[source, partiql]
+----
+SELECT VALUE v FROM UNPIVOT {'a':1, 'b':2} AS v
+----
+stem:[->]
+[source, partiql]
+----
+<<1,2>>
+----
+
+Whereas the following query:
+
+[source, partiql]
+----
+SELECT t.* FROM <<{'a':1, 'b':1}, {'a':2, 'b':2}>> AS t
+----
+stem:[->]
+[source, partiql]
+----
+<< {'a':1, 'b':1}, {'a':2, 'b':2} >>
+----
+
+does not do the transformation with `UNPIVOT`. If one does not want
+this behavior, `SELECT VALUE` can be used (<<sec:select-values>>).
+====
+
+
+
+
+[discrete]
+==== Path Expressions with Wildcards
+
+PartiQL also provides multi-step path expressions, called _path
+collection expressions_. Their semantics is a generalization of the
+semantics of a path expression with a single stem:[\[**\]] or
+stem:[.**]. Consider the path collection expression:
+
+[stem]
+++++
+e w_1 p_1...w_n p_n
+++++
+
+where stem:[e] is any expression; stem:[n>0]; each _wildcard step_
+stem:[w_i] is either stem:[\[**\]] or stem:[.**]; each _series of
+plain path steps_ stem:[p_i] is a sequence of zero or more tuple path
+navigations or array navigations (potentially mixed).
+
+Then the path collection expression is equivalent to the SFW query
+
+
+[source%unbreakable, partiql, subs="+normal"]
+----
+SELECT VALUE vn.pn
+FROM
+    u1 e AS v1,
+    u2 v1.p1 AS v1,
+    . . .
+    un @vn-1.pn-1 AS vn
+----
+
+where each stem:[v_i] is a fresh variable and each stem:[u_i] is
+`UNPIVOT` if stem:[w_i] is a stem:[.**] and it is nothing if
+stem:[w_i] is a stem:[\[**\]]. Intuitively stem:[v_i] corresponds to
+the stem:[i]-th star.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+According to the above, consider the following query:
+
+[source, partiql]
+----
+SELECT VALUE foo FROM e.* AS foo
+----
+
+reduces to
+
+[source, partiql]
+----
+SELECT VALUE foo FROM (SELECT VALUE v FROM UNPIVOT e AS v) AS foo
+----
+
+which is equivalent to
+
+[source, partiql]
+----
+SELECT VALUE foo FROM UNPIVOT e AS foo
+----
+
+Next, consider the path collection expression:
+
+[source%unbreakable, partiql]
+----
+tables.items[*].product.*.nest
+----
+
+This expression reduces to
+
+[source%unbreakable, partiql]
+----
+SELECT
+  VALUE v2.nest
+FROM
+  tables.items AS v1,
+  UNPIVOT @v1.product AS v2
+----
+====

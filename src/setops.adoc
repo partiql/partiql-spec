@@ -1,0 +1,4 @@
+[[section:setop]]
+==  `UNION` / `INTERSECT` / `EXCEPT` clauses
+
+Coming up...

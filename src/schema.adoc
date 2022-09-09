@@ -1,0 +1,15 @@
+[[sec:schema]]
+== Structural Types and Type-related Query Syntax and Semantics (WIP)
+
+The input data generally conform to a _structural type_, also often
+called _schema_. The SQL semantics make extensive use of the structural
+types in order to assign meaning to queries, which would not have a
+meaning in the absence of such structural types.
+
+In the interest of SQL compatibility and user convenience, PartiQL also
+allows structural types to assign meaning to queries that would not have
+a meaning otherwise.
+
+We will soon specify the precise rules that provide SQL compatibility,
+while keeping the schema optional and the query results stable with
+respect to schema addition.

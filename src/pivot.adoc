@@ -1,0 +1,53 @@
+[[sec:pivot_clause]]
+== `PIVOT` Clause Semantics
+
+The `PIVOT` clause inputs a bag of binding tuples or an array of
+binding tuples.  Semantically, it is similar to `SELECT VALUE` but
+whereas the latter creates a collection of values, `PIVOT` constructs
+a tuple where the each input binding is evaluated to an attribute
+value pair in the tuple.
+
+The clause:
+
+
+[source%unbreakable, partiql]
+----
+PIVOT v AT a
+----
+
+inputs a bag or an array of binding tuples and outputs a single tuple
+where each evaluation of stem:[v] and stem:[a] generate an attribute
+in the tuple.
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+This example illustrates a `PIVOT` that creates a tuple from a
+collection of tuples.
+
+[source%unbreakable, partiql]
+----
+PIVOT x.v AT x.a
+FROM << {'a': 'first', 'v': 'john'}, {'a': 'last', 'v': 'doe'} >>
+----
+
+The result is
+
+[source%unbreakable, partiql]
+----
+{'first':'john', 'last':'doe'}
+----
+====
+
+
+
+The expression stem:[a] is expected to evaluate into a string
+value. In strict mode, it is an error if this evaluates to a
+non-string value. In permissive mode, the attribute is considered
+`MISSING` and does not appear in the output. The expression stem:[v]
+can be any PartiQL value, but if it is `MISSING` it will not be
+generated in the resulting tuple.

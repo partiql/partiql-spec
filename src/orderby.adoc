@@ -1,0 +1,204 @@
+[[section:order-by]]
+== `ORDER BY` clause
+
+SQL’s `ORDER BY` orders the output data. Similarly, the PartiQL `ORDER
+BY` is responsible for turning its input bag into an array. In the
+following aspects, PartiQL extends the SQL semantics to resolve issues
+that are not relevant in SQL but emerge when working on Ion data.
+
+. SQL’s `ORDER BY` clause orders its input using an expanded version
+of the less-than function, which we call the _order-by less-than_ and
+denote by stem:[<^o]. The PartiQL stem:[<^o] semantics
+(<<#sec:order-by-less-than>>) also specify an order among values of
+heterogeneous types, including complex values.
+
+. The interaction of `ORDER BY` with a `UNION` (or any other set
+operator) of SFW queries requires attention since, unlike SQL, in
+PartiQL there are no binding tuples (or any tuples at all for that
+matter) after a `SELECT VALUE` clause. <<#sec:order-by-and-setops>>
+elaborates on this aspect of PartiQL.
+
+. Unlike SQL, the input of an PartiQL query may also have order,
+because it is an array. The user may want to preserve the order of the
+input into the output. In this case, the `AT` structure in the `FROM`
+clause (recall, <<#sec:single-item-from>>) can capture the input order
+and the `ORDER BY` can recreate it. However, this order preservation
+mechanism is tedious for the user. Thus, `ORDER BY` also offers an
+order preservation directive.
+
+<<#sec:orderby-sql-compatibility>> and
+<<#sec:select-variables-in-order>> discuss SQL compatibility issues.
+
+[[sec:orderby-syntax]]
+=== PartiQL Syntax
+
+Similar to SQL, the PartiQL `ORDER BY` clause syntax is:
+
+.EBNF Grammar for PartiQL Names
+[#figure:orderby:bnf]
+[source%linenums%unbreakable, ebnf]
+----
+order_by = "ORDER", "BY",
+               (
+                        expr, [ "ASC"|"DESC" ], ["NULLS FIRST"|"NULLS LAST"],
+                  { "," expr, [ "ASC"|"DESC" ], ["NULLS FIRST"|"NULLS LAST"], }
+               )
+               | "PRESERVE" ;
+----
+
+(<<#figure:query:bnf>>), where the sequence of `expr` is a list of
+_ordering expressions_. In PartiQL a SFW query with `ORDER BY` outputs
+an array, whereas a SFW query without `ORDER BY` outputs a bag.
+
+Alike SQL’s `ORDER BY` clause, the `NULLS FIRST` and `NULLS LAST`
+keywords indicate whether `NULL` and `MISSING` values are ordered
+before or after all other values. Notice that in PartiQL, the `NULLS
+FIRST` and `NULLS LAST` refer to both `NULL` and `MISSING`.
+
+[[sec:order-by-less-than]]
+=== The PartiQL order-by less-than function
+
+The `ORDER BY` clause sorts its input using the _order-by less-than
+function_ stem:[<^o], which is able to compare values of different
+types (unlike SQL). In particular:
+
+. `NULL` and `MISSING` are always first or last and compare equally
+ according to stem:[<^o]. In other words, stem:[<^o] cannot
+ distinguish between `NULL` and `MISSING`.
+
+. The boolean values are coming first among the non-absent values
+(i.e., stem:[b <^o x] is always true if stem:[b] is boolean and
+stem:[x] is not a `NULL` or a `MISSING` or a boolean). `false` comes
+before `true`.
+
+. The numbers come next. The comparisons between number values do not
+depend on precision or specific type. Given two numbers stem:[x] and
+stem:[y], the PartiQL stem:[x<^o y] behaves identical to the SQL
+_order-by less-than_ function.  Namely, if stem:[x] and stem:[y] are
+not the special values `-inf`, `inf`, or `nan`, then stem:[x <^o y] is
+the same with stem:[x < y]. The special value `nan` comes before
+`-inf`, which comes before all normal numeric values, which are
+followed by `+inf`.
+
+. Timestamp values follow and are compared by the absolute point of time
+irrespective of precision or local UTC offset.
+
+. The text types come next ordered by their lexicographical ordering by
+Unicode scalar irrespective of their specific type.
+
+. The LOB types follow and are ordered by their lexicographical ordering
+by octet.
+
+. Arrays come next, and their values compare lexicographically based
+on the comparison of their elements, recursively. Notice that given an
+array stem:[ \[e_1,..., e_m \] ] and a longer array stem:[ \[e_1, ...,
+e_m, e_{m+1}, ..., e_n \] ] that has the same first stem:[m] values,
+the former array comes first.
+
+. Tuple values follow and compare lexicographically based on the sorted
+attributes (as defined recursively), first by the attribute name, and
+secondly by the attribute values themselves.
+
+. Bag values come last (except, of course, when `NULLS LAST` is
+specified) and their values compare by first reducing them to arrays
+by sorting their elements and then comparing the resulting arrays.
+
+[[sec:order-by-and-setops]]
+=== Dependency of semantics on the Presence of Set Operators
+
+Coming up...
+
+[[sec:orderby-sql-compatibility]]
+=== SQL Compatibility `ORDER BY` clauses
+
+For SQL-compatibility, PartiQL allows the `CURRENT` variable to be omitted from
+ordering expressions. Then when the `CURRENT` variable binds tuples, the ordering
+expressions can refer directly to the attributes of those tuples.
+
+The complete scoping rules are as follows. When all of the following
+conditions are satisfied:
+
+. an PartiQL path expression ordering expression stem:[as] appears in
+the `ORDER BY` of a `UNION ... ORDER BY` query, where stem:[a] is an
+identifier and stem:[s] is the potentially empty suffix of the path.
+
+. the expression stem:[as] is evaluated in database environment
+stem:[p_0] and variables’ environment stem:[p], which defines
+variables stem:[v_1,...,v_n] and none of them is named stem:[a].
+
+. none of the variables stem:[v_1,...,v_n] may bind to a tuple that
+has an attribute stem:[a].
+
+
+then the path expression `as` resolves to `CURRENT.as`.
+
+The most common and useful way to have the 3rd condition be satisfied
+is when the `UNION ... ORDER BY` is a top-level query and, thus, the
+variables environment stem:[p] is empty.
+
+[[sec:select-variables-in-order]]
+=== Use of `SELECT` variables in `ORDER BY` for SQL compatibility
+
+Recall from <<#section:environment-and-sfw>> that `ORDER BY` is
+evaluated before `SELECT`. For SQL-compatibility, given `SELECT e AS
+a`, PartiQL also supports the syntactic sugar of using `a` in lieu of `e` in the `ORDER BY`
+clause. Therefore, both SFW queries below are equivalent:
+
+[%unbreakable]
+====
+[source%unbreakable, partiql]
+----
+SELECT e AS a
+FROM ...
+ORDER BY a
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+SELECT e AS a
+FROM ...
+ORDER BY e
+----
+====
+
+
+[[sec:literal-conversion]]
+=== Coercion of literals for SQL compatibility
+
+// TODO (yannis) move to comparisons. It's not an ORDER BY issues
+// TODO (joshps) honestly, need to add an entire coercion/conversion section
+
+Notice that definition of `<` dismissed the SQL coercions. In SQL, given
+explicit literals in a query, coercions may happen.
+
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT * FROM foo WHERE 9 < '10'
+----
+
+is equivalent to
+
+[source%unbreakable, partiql]
+----
+SELECT * FROM foo WHERE 9 < 10
+----
+
+because an automatic coercion of string to number will be introduced.
+====
+
+// TODO finish this sentence
+
+This aspect of SQL compatibility is introduced by rewriting. Namely,
+given a query with incompatible types
+

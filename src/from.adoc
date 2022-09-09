@@ -1,0 +1,682 @@
+[[sec:from]]
+== `FROM` Clause Semantics
+
+The formal semantics of a `FROM` clause describe the collection of
+binding tuples stem:[B_"FROM"^"out"] that is output by the `FROM`
+clause. The semantics specify three cases and essentially extend the
+tuple calculus that underlies the SQL semantics.
+
+1. The semantics specify what is the core semantics of a clause with a
+single item (<<sec:single-item-from>> and <<sec:unpivot>>). The term
+"`semantics of the item stem:[f]`" is synonymous to the term
+"`semantics of a clause with the single item stem:[f]`". In either
+case, we refer to the specification of the collection of binding
+tuples stem:[B^{out}_{\from}] that results from the evaluation of
+"`stem:[f]`".
+
+2. Then the semantics specify how multiple items combine, according to
+the core semantics, using the join and outerjoin operations
+(<<sec:combining-multiple-item-join>>,
+<<sec:combining-multiple-item-leftjoin>> and
+<<sec:combining-multiple-item-full-outerjoin>>).
+
+3. Finally, the semantics specify the syntactic sugar structures that are
+overlaid over the core semantics. Their primary purpose is SQL
+compatibility.
+
+[[sec:single-item-from]]
+=== Ranging Over Bags and Arrays
+
+Next we define the semantics of a `FROM` clause that has a single
+`FROM` item and such item ranges over a bag or array. First consider
+the `FROM` clause:
+
+
+[source%unbreakable, partiql]
+----
+FROM a AS v AT p
+----
+
+Let us call stem:[v] to be the _element variable_ and stem:[p] to be
+the _position variable_. In the normal case, stem:[a] is an array
+stem:[ \[ e_0, ..., e_{n-1} \] ]. The `FROM` clause outputs a bag of
+binding tuples. For each stem:[e_i], the bag has a binding tuple
+stem:[< < v: e_i, p:i > >].
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:single-from-item-with-order%unbreakable]
+[subs="+normal"]
+====
+Consider the following stem:[p_0] (database environment):
+
+stem:[ p_0 = << ] +
+stem:[ "someOrderedTable" : \[ ] +
+stem:[ {'a':0, 'b':0}, ] +
+stem:[ {'a':1, 'b':1} ] +
+stem:[ \] ] +
+stem:[ >> ]
+
+then the following `FROM` clause:
+
+[source%unbreakable, partiql]
+----
+FROM someOrderedTable AS x AT y
+----
+
+outputs the bag of binding tuples:
+
+stem:[B_"FROM"^"out" =] stem:[< <] +
+stem:["    " << x: {'a':0, 'b':0}, y:0 >> ] +
+stem:["    " << x: {'a':1, 'b':1}, y:1 >> ] +
+stem:[ > > ]
+====
+
+
+
+As in SQL, the `AS` keyword is optional. The same applies to all cases below
+where `AS` appears. If there is no `AT` clause, then the binding tuples have only
+the element variable. In particular, consider:
+
+[source%unbreakable, partiql]
+----
+FROM a AS v
+----
+
+Normally stem:[a] is a collection, i.e, an array stem:[
+\[e_0,...,e_{n-1}\] ] or a bag stem:[ < < e_0,...,e_{n-1} > > ]. In
+either case, the `FROM` clause outputs a bag. For each stem:[e_i], the bag
+has a binding tuple stem:[ << v:e_i >> ].
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+Consider again the database of <<xmpl:single-from-item-with-order>>
+and then the `FROM` clause
+
+[source%unbreakable, partiql]
+----
+FROM someOrderedTable AS x
+----
+
+this clause outputs:
+
+stem:[B_"FROM"^"out" =] stem:[< <] +
+stem:["    " << x: {'a':0, 'b':0} >> ] +
+stem:["    " << x: {'a':1, 'b':1} >> ] +
+stem:[ > > ]
+====
+
+
+
+
+[[sec:bag-array-mistypings]]
+==== Mistyping Cases
+
+In the following cases the expression in the `FROM` clause item has the wrong
+type. Under the type checking option, all of these cases raise an error
+and the query fails. Under the permissive option, the cases proceed as
+follows
+
+
+
+Position variable on bags:: Consider the clause:
++
+[source%unbreakable, partiql]
+----
+FROM b AS v AT p
+----
++
+and assume that stem:[b] is a bag stem:[< < e_0, ..., e_{n-1} > >
+]. The output is a bag with binding tuples stem:[<< v: e_i, p:
+"MISSING" >>]. The value `MISSING` for the variable stem:[p] indicates
+that the order of elements in the bag was meaningless.
+
+
+
+Iteration over a scalar value:: Consider the query:
++
+[source%unbreakable, partiql]
+----
+FROM s AS v AT p
+----
++
+or the query:
++
+[source%unbreakable, partiql]
+----
+FROM s AS v
+----
++
+where stem:[s] is a scalar value. Then stem:[s] coerces into the bag
+stem:[< < s > >], i.e., the bag that has a single element, the
+stem:[s]. The rest of the semantics is identical to what happens when
+the lhs of the `FROM` item is a bag.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+Consider again the database of <<xmpl:single-from-item-with-order>>
+and the `FROM` clause:
+
+[source%unbreakable, partiql]
+----
+FROM someOrderedTable[0].a AS x
+----
+
+The expression `someOrderedTable[0].a` evaluates to `0` and,
+consequently, the `FROM` clause outputs a single binding tuple:
+
+stem:[B_"FROM"^"out" =] stem:[< <] stem:[ << x: 0 >> ] stem:[ > > ]
+====
+
+
+
+
+Iteration over a tuple value:: Consider the query:
++
+[source%unbreakable, partiql]
+----
+FROM t AS v AT p
+----
++
+or the query:
++
+[source%unbreakable, partiql]
+----
+FROM t AS v
+----
++
+where stem:[t] is a tuple. Then stem:[t] coerces into the
+bag stem:[< < t > >]
+
+
+
+Iteration over an absent value:: Consider the query
++
+[source%unbreakable, partiql]
+----
+FROM a AS v AT p
+----
++
+or the query
++
+[source%unbreakable, partiql]
+----
+FROM a AS v
+----
++
+whereas stem:[a] evaluates into an _absent value_ (i.e., either
+`MISSING` or `NULL`). In either case the _absent value_ stem:[a]
+coerces into the bag stem:[< < a > >].  Then the semantics follow the
+normal case.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+Consider again the database of <<xmpl:single-from-item-with-order>>
+and the clause
+
+[source%unbreakable, partiql]
+----
+FROM someOrderedTable[0].c AS x
+----
+
+The expression `someOrderedTable[0].c` evaluates to `MISSING` and,
+consequently, the `FROM` clause outputs the binding tuple:
+
+stem:[B_"FROM"^"out" =] stem:[< <] stem:[ << x: "MISSING" >> ] stem:[ > > ]
+====
+
+
+
+
+[[sec:unpivot]]
+=== Ranging over Attribute-Value Pairs
+
+The `UNPIVOT` clause enables ranging over the attribute-value pairs of a tuple.
+The `FROM` clause
+
+[source%unbreakable, partiql]
+----
+FROM UNPIVOT t AS v AT a
+----
+
+normally expects stem:[t] to be a tuple, with attribute/value pairs
+stem:[ a_1:v_1, ..., a_n,v_n ]. It does not matter whether the tuple
+is ordered or unordered. The `FROM` clause outputs the collection of binding
+tuples
+
+stem:[B_"FROM"^"out" = < < <<v:v_1, a:a_1>> ... <<v:v_n, a:a_n>> > >]
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp}
+[%unbreakable]
+[subs="+normal"]
+====
+Consider the stem:[p_0]:
+
+stem:[p_0 = << "justATuple" : {'amzn': 840.05, 'tdc': 31.06} >>]
+
+The clause:
+
+[source%unbreakable, partiql]
+----
+FROM UNPIVOT justATuple AS price AT symbol
+----
+
+outputs:
+
+stem:[B_"FROM"^"out" =] stem:[< <] +
+stem:[ << price: 840.05, symbol: 'amzn' >> ] +
+stem:[ << price: 31.06, symbol: 'tdc' >> ] +
+stem:[ > > ]
+====
+
+[[sec:unpivot-mistypings]]
+==== Mistyping Cases
+
+In the following cases the expression in the `FROM` `UNPIVOT` clause
+item has the "`wrong`" type, i.e., it is not a tuple. Under the type
+checking option, all of these cases raise an error and the query
+fails. Under the permissive option, the cases proceed as follows:
+
+[source%unbreakable, partiql]
+----
+FROM UNPIVOT x AS v AT n
+----
+
+whereas stem:[x] is not a tuple and is not `MISSING`, is equivalent to:
+
+[source%unbreakable, partiql]
+----
+FROM UNPIVOT {'_1': x} AS v AT n
+----
+
+Effectively, a tuple is generated for the non-tuple value. When
+stem:[x] is `MISSING` then the above is equivalent to:
+
+[source%unbreakable, partiql]
+----
+FROM UNPIVOT {} AS v AT n
+----
+
+remember that a tuple cannot contain `MISSING`. So the present case is equivalent
+to the empty tuple case.
+
+[[sec:combining-multiple-item-join]]
+=== Combining Multiple `FROM` Items with Comma, `CROSS JOIN` , or `JOIN`
+
+The `FROM` clause expressions:
+
+
+[subs="+normal", unbreakable]
+====
+[source%unbreakable, partiql]
+----
+l,r
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+l CROSS JOIN r
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+l JOIN r ON TRUE
+----
+====
+
+
+have the same semantics. They combine the bag of bindings produced
+from the `FROM` item stem:[l] with the bag of binding tuples produced
+by the `FROM` item stem:[r], whereas the expression stem:[r] may
+utilize variables defined by stem:[l]. Again, the term “the semantics
+of `l CROSSJOIN r`” is equivalent to the term “the semantics of
+`FROM l CROSSJOIN r`”. In both cases, the semantics specify a bag of
+binding tuples.
+
+==== Associativity of `CROSS JOIN`
+
+We explain the `CROSS JOIN` and `,` as if they are left associative
+binary operators, despite the fact that one can write more than two
+`FROM` items without specifying grouping with parenthesis. Since the
+`,` and `CROSS JOIN` operators are associative, we may write (as is
+common in SQL):
+
+
+[subs="+normal"]
+[%unbreakable]
+====
+[source%unbreakable, partiql]
+----
+f1, f2, f3
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+f1 CROSS JOIN f2 CROSS JOIN f3
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+f1 JOIN f2 ON TRUE JOIN f3 ON TRUE
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+(f1, f2), f3
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+(f1 CROSS JOIN f2) CROSS JOIN f3
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+(f1 JOIN f2 ON TRUE) JOIN f3 ON TRUE
+----
+====
+
+
+==== Semantics
+
+Consider the following:
+
+[source%unbreakable, partiql]
+----
+l CROSS JOIN r
+----
+
+unlike SQL, the rhs stem:[r] of the expression may use variables
+defined by the lhs item stem:[l]. The result of this expression for a
+database environment stem:[p_0] and variables environment stem:[p] is
+the bag of binding tuples produced by the following pseudo-code. The
+pseudo-code uses the function stem:["eval"(p_0,p,e)] that evaluates
+the expression stem:[e] within the environments stem:[p_0] and
+stem:[p], i.e., stem:[p_0,p |-- e -> "eval"(p_0,p,e)].
+
+[source]
+----
+for each binding tuple b_l in eval(p0,p,l)
+    for each binding tuple b_r in eval(p0, (p || b_l), r)
+    	add (b_l || b_r) to the output bag
+----
+
+In other words, the `l CROSS JION r` outputs all binding tuples
+stem:[b = b^l || b^r], where stem:[b^l in "eval"(p_0,p,l)] and
+stem:[b^r in "eval"(p_0, (p || b^l), r)]. The key extension to SQL
+is that stem:[r] is evaluated in the variables environment stem:[p ||
+b^l], i.e., it can use the variables that were defined by
+stem:[l]. The details of the variable scoping aspects are described in
+<<sec:scoping-variables>>.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+This example simply reminds the tuple calculus explanation of the `FROM` SQL
+semantics. It does not yet endeavor into special aspects of PartiQL.
+Consider the following database, which is conventional SQL:
+
+
+stem:[ p_0 = << ] +
+stem:[    "customers": \[ ] +
+stem:[        {"'id'": 5, "'name'": "'Joe'"}, ] +
+stem:[        {"'id'": 7, "'name'": "'Mary'"} ] +
+stem:[    \], ] +
+stem:[    "orders": \[ ] +
+stem:[        { "'custId'": 7, "'productId'" : 101}, ] +
+stem:[        { "'custId'": 7, "'productId'" : 523} ] +
+stem:[    \] ] +
+stem:[ >> ]
+
+
+Then consider the following `FROM` clause, which could be coming from a
+conventional SQL query:
+
+[source%unbreakable, partiql]
+----
+FROM customers AS c, orders AS o
+----
+
+Note that in PartiQL this could also be written using the `CROSS JOIN`
+keyword, and presumably, one would put the sensible equality condition
+`c.id = o.custId` in the `WHERE` clause.  At any rate, this `FROM`
+clause outputs the bag of binding tuples:
+
+stem:[B_"FROM"^"out" = < <] +
+stem:[ << c: {"'id'": 5, "'name'": "'Joe'"}, o: {"'custId'": 7, "'productId'": 101} >> ] +
+stem:[ << c: {"'id'": 5, "'name'": "'Joe'"}, o: {"'custId'": 7, "'productId'": 523} >> ] +
+stem:[ << c: {"'id'": 7, "'name'": "'Mary'"}, o: {"'custId'": 7, "'productId'": 101} >> ] +
+stem:[ << c: {"'id'": 7, "'name'": "'Mary'"}, o: {"'custId'": 7, "'productId'": 523} >> ] +
+stem:[> >]
+====
+
+
+
+
+Due to scoping rules that will be justified and elaborated in
+<<sec:variable-scoping>>, when the rhs of a `CROSS JOIN` is a path or
+a function that uses a variable named stem:[n], such variable must be
+referred as stem:[\@n].
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+Consider the database:
+
+stem:[ p_0 = << ] +
+stem:[    "sensors": \[ ] +
+stem:[        {"'readings'": [{"'v'": 1.3}, {"'v'": 2}]}, ] +
+stem:[        {"'readings'": [{"'v'": 0.7}, {"'v'": 0.8}, {"'v'": 0.9}]} ] +
+stem:[    \] ] +
+stem:[ >> ]
+
+Intuitively, the following `FROM` clause unnests the tuples that are nested
+within the `readings`.
+
+[source%unbreakable, partiql]
+----
+FROM sensors AS s, s.readings AS r
+----
+
+stem:[B_"FROM"^"out" = < <] +
+stem:[   s: {"'readings'": \[{"'v'": 1.3}, {"'v'": 2}\]}, r: {v:1.3} ] +
+stem:[   s: {"'readings'": \[{"'v'": 1.3}, {"'v'": 2}\]}, r: {v:2} ] +
+stem:[   s: {"'readings'": \[{"'v'": 0.7}, {"'v'": 0.8}, {"'v'": 0.9}\]}, r: {"'v'":0.7} ] +
+stem:[   s: {"'readings'": \[{"'v'": 0.7}, {"'v'": 0.8}, {"'v'": 0.9}\]}, r: {"'v'":0.8} ] +
+stem:[   s: {"'readings'": \[{"'v'": 0.7}, {"'v'": 0.8}, {"'v'": 0.9}\]}, r: {"'v'":0.9} ] +
+stem:[> >]
+====
+
+
+
+
+[[sec:combining-multiple-item-leftjoin]]
+=== Combining Multiple Items with 
+
+The `FROM` clause expression:
+
+
+[subs="+normal"]
+[%unbreakable]
+====
+[source%unbreakable, partiql]
+----
+l LEFT CROSS JOIN r 
+----
+stem:[<=>]
+[source%unbreakable, partiql]
+----
+l LEFT JOIN r ON TRUE
+----
+====
+
+replicates SQL’s `LEFT JOIN` functionality and, in addition, it also
+works for the case where the lhs of stem:[r] uses variables defined
+from stem:[l].
+
+Let’s assume that the variables defined by stem:[r] are
+stem:[v_1^r, ..., v_n^r]. The result of evaluating `l LEFT CROSS JOIN r` in
+environments stem:[p_0] and stem:[p] is the bag of binding tuples
+produced by the following pseudocode, which also uses the
+stem:["eval"] function (See <<sec:combining-multiple-item-join>>).
+
+[source%unbreakable]
+----
+for each binding bl in eval(p0, p, l)
+    Br = eval(p0,(p||bl),r)
+    if Br is the empty bag
+       add (bl || ⟨v1r : NULL . . . vnr : NULL⟩) to the output bag
+    else
+       for each binding br in Br
+           add (bl || br) to the output bag
+----
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+Consider the database:
+
+stem:[ p_0 = << ] +
+stem:[    "sensors": \[ ] +
+stem:[        {"'readings'": \[{"'v'":1.3}, {"'v'":2}\]} ] +
+stem:[        {"'readings'": \[{"'v'":0.7}, {"'v'":0.8}, {"'v'":0.9}\]}, ] +
+stem:[        {"'readings'": \[\]} ] +
+stem:[      \] ] +
+stem:[ >> ]
+
+Notice that the value of the last tuple’s `reading` attribute is the
+empty array.  The following `FROM` clause unnests the tuples that are
+nested within the `readings` but will also keep around the tuple with
+the empty `readings`. (See the last binding tuple.)
+
+[source%unbreakable, partiql]
+----
+FROM sensors AS s LEFT CROSS JOIN s.readings AS r
+----
+
+stem:[B_"FROM"^"out" = < <] +
+stem:[ s: {"'readings'": \[{"'v'":1.3}, {"'v'":2}\]}, r: {"'v'":1.3} ] +
+stem:[ s: {"'readings'": \[{"'v'":1.3}, {"'v'":2}\]}, r: {"'v'":2} ] +
+stem:[ s: {"'readings'": \[{"'v'":0.7}, {"'v'":0.8}, {"'v'":0.9}\]}, r: {"'v'":0.7} ] +
+stem:[ s: {"'readings'": \[{"'v'":0.7}, {"'v'":0.8}, {"'v'":0.9}\]}, r: {"'v'":0.8} ] +
+stem:[ s: {"'readings'": \[{"'v'":0.7}, {"'v'":0.8}, {"'v'":0.9}\]}, r: {"'v'":0.9} ] +
+stem:[ s: {"'readings'": \[\]}, r: "NULL" ] +
+stem:[ >> ]
+====
+
+
+
+
+[[sec:combining-multiple-item-full-outerjoin]]
+=== Combining Multiple `FROM` Items with `FULL JOIN`
+
+The clause expression:
+
+[source%unbreakable, partiql]
+----
+l FULL JOIN r ON c
+----
+
+replicates SQL’s `FULL JOIN` functionality. It assumes that (alike
+SQL) the lhs of stem:[r] does not use variables defined from
+stem:[l]. Thus, we do not discuss further.
+
+[[sec:rewriting-on]]
+=== Expanding `JOIN` and `LEFT JOIN` with `ON`
+
+In compliance to SQL, the and have an optional clause. The semantics
+of can be explained as syntactic sugar over the core PartiQL. They can
+also be explained by a simple extension of the semantics of
+<<sec:combining-multiple-item-join>>,
+<<sec:combining-multiple-item-leftjoin>>, and
+<<sec:combining-multiple-item-full-outerjoin>>. The semantics of:
+
+[source%unbreakable, partiql]
+----
+l JOIN r ON c
+----
+
+are the following modification of the pseudocode of
+<<sec:combining-multiple-item-join>>.
+
+
+[source%unbreakable]
+----
+for each binding tuple b_l in eval(p0,p,l)
+    for each binding tuple b_r in eval(p0, (p || b_l), r)
+    	if eval(p0, (p || b_l || b_r), c) is true <1>
+	   add (b_l || b_r) to the output bag
+----
+<1> The modification for `ON`
+
+
+The semantics of:
+
+[source%unbreakable, partiql]
+----
+l LEFT JOIN r ON c
+----
+
+are the following modification of the pseudocode of
+<<sec:combining-multiple-item-leftjoin>>. In essence, the outputs a
+tuple padded with whenever there is no binding of stem:[r] that
+satisfies the condition stem:[c].
+
+[source%unbreakable]
+----
+for each binding bl in eval(p0, p, l)
+    Br = eval(p0,(p||bl),r)
+    Qr = <<>>
+    for each binding br in Br
+        if eval(p0, (p || bl || br), c) is true
+	        add br in Qr
+    if Qr is the empty bag
+       add (bl || ⟨v1r : NULL . . . vnr : NULL⟩) to the output bag
+    else
+       for each binding br in Qr
+           add (bl || br) to the output bag
+----
+
+[[sec:lateral]]
+=== SQL’s `LATERAL`
+
+SQL 2003 used the `LATERAL` keyword to correlate clause items. In the
+interest of compatibility with SQL, PartiQL also allows the use of the
+keyword `LATERAL`, though it does not do anything more than the comma itself
+would do. That is `l, LATERAL r` is equivalent `l, r`.

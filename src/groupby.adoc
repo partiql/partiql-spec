@@ -1,0 +1,758 @@
+[[section:groupby]]
+== `GROUP BY` clause
+
+The PartiQL `GROUP BY` clause expands SQL's grouping. Unlike SQL, the
+PartiQL `GROUP BY` can be thought of as a standalone operator that
+inputs a collection of binding tuples and outputs a collection of
+binding tuples.
+
+As is typical in many clauses, the semantics proceed in two steps:
+
+* <<#sec:group-variable>> explains the core PartiQL `GROUP BY`
+  structure.
+* <<#sec:sql-groupby>> shows that SQL's can be explained over the core
+`GROUP BY`.
+
+
+[[sec:group-variable]]
+=== PartiQL `GROUP BY` core: Grouping into a Group Variable
+
+The `GROUP BY` clause ({bnf-ref-group-by})
+
+[source%unbreakable, partiql]
+----
+GROUP BY e1 AS x1, ..., em AS xm GROUP AS g
+----
+
+creates a group. Each stem:[e_i] is a _grouping expression_, each
+stem:[x_i] is a _grouping variable_ footnote:[Grouping variables is an
+extension of SQL by PartiQL, which interestingly simplifies
+dramatically the explanation of SQL semantics, as it enables the
+`GROUP BY` to be seen as a standalone function.] and stem:[g] is the
+_group variable_.
+
+As in SQL, the bag of input binding tuples stem:[B_"GROUP"^"in"] is
+partitioned into the minimal number of equivalence groups
+stem:[B_1,...,B_n], such that any two binding tuples stem:[b, b' in
+B_"GROUP"^"in"] are in the same equivalence group if and only if every
+grouping expression stem:[e_i] evaluates to equivalent values
+stem:[v_i] (when evaluated on stem:[b]) and stem:[ v_i' ] (when
+evaluated on stem:[b']). More precisely, as in SQL, there is an
+equivalence function stem:["eqg"], used by the `GROUP BY` to determine
+if two values stem:[v_i] and stem:[ v_i' ] are equivalent for grouping
+purposes. The equivalence function stem:["eqg"(v_i, v_i' )] returns
+only true or false; true meaning that the values are equivalent for
+grouping purposes. See <<sec:eqg>> for specifics of `eqg`. If a
+grouping expression evaluates to `MISSING`, it is first coerced into
+`NULL`, thus bringing `MISSING` and `NULL` in the same group.
+
+Unlike SQL, for each group stem:[B_j (1 <= j <= n)], the `GROUP BY`
+clause outputs a binding tuple stem:[b_j = (: x_1 : v_1,...,x_m : v_m,
+g : B_j:)] that has the full group stem:[B_j]. Notice:
+
+. the binding tuples that appear in the stem:[g] collection have
+one attribute for each of the variables defined in the `FROM` clause, since
+these binding tuples come as-is from stem:[B_"GROUP"^"in"].
+
+. even if the bag stem:[B_"GROUP"^"in"] is flat binding tuples, the
+output bag stem:[B_"GROUP"^"out"] is not just flat binding tuples,
+since stem:[g] has nested binding tuples.  Note, we have been
+explicitly denoting binding attributes with `MISSING` values in the
+binding tuples. However, once these binding tuples become the tuples
+of the PartiQL data model, any binding attribute with `MISSING` value
+will not appear.
+
+
+
+[[sec:grouping-readings]]
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+Consider again `logs` the data of <<xmpl:nesting-readings>> and assume
+that we want to group the `co` readings by sensor. The following query
+solves the problem using only core features.
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'sensor': sensor,
+              'readings': (SELECT VALUE v.l.co FROM g AS v) }
+FROM logs AS l
+GROUP BY l.sensor AS sensor GROUP AS g
+----
+
+The `GROUP BY` outputs the collection of binding tuples
+
+stem:[ B_"GROUP"^"out" = B_"SELECT"^"in" = ] stem:[< <] +
+stem:[ (: "sensor":1, g: < < (: l:{"'sensor'":1, "'co'":0.4} :)  (: l:{"'sensor'":1, "'co'":0.2} :) > > :) ] +
+stem:[ (: "sensor":2, g: < < (: l:{"'sensor'":2, "'co'":0.3} :) > > :) ] +
+stem:[ > > ]
+
+Notice that the collection stem:[g] has tuples with a single attribute stem:[l], since
+this is the single variable of the `FROM` clause in this example.
+
+Consequently the `SELECT` clause outputs
+
+stem:[ < < ] +
+stem:[   {"'sensor'":1, "'readings'": < < 0.4, 0.2 > > }, ] +
+stem:[   {"'sensor'":2, "'readings'": < < 0.3 > > } ] +
+stem:[ > > ] +
+
+Notice that the query of <<xmpl:nesting-readings>> and the query of
+the present example do not always produce the same result. For
+example, if there were no readings for a sensor, the query of
+<<xmpl:nesting-readings>> would still have this sensor in the result
+(and its `readings` would be empty). In contrast, the query of the
+present example will not have this sensor in the result.
+
+Here is a shorter equivalent query that uses PartiQL collection paths
+and SQL's aliases.
+
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'sensor': sensor,
+              'readings': g[*].l.co }
+FROM logs AS l
+GROUP BY l.sensor AS sensor GROUP AS g
+----
+====
+
+
+Notice, the output binding tuple provides the partitioned input
+binding tuples in the group variable stem:[g], which can be explicitly
+utilized in subsequent `HAVING`, `ORDER BY`, and `SELECT`
+clauses. Thus, an PartiQL query can perform complex computations on
+the groups, leading to results of any type (e.g.  collections nested
+within collections). The explicit presence of groups in PartiQL, while
+more general than SQL, also leads to simpler semantics than those of
+SQL, since the `GROUP BY` clause semantics are independent of the presence of
+subsequent functions in `HAVING`, `ORDER BY`, and `SELECT`.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:groupby-avg-count%unbreakable]
+[subs="+normal"]
+====
+
+The following PartiQL query counts and averages the readings of each
+sensor. It also refers to the `logs` of <<xmpl:nesting-readings>>. The
+`COLL_COUNT` function is simply given the group variable and counts
+how many elements are in that collection.
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'sensor': sensor,
+              'avg': COLL_AVG(SELECT VALUE v.l.co FROM g AS v),
+              'count': COLL_COUNT(g) }
+GROUP BY l.sensor AS sensor GROUP AS g
+----
+====
+
+
+Notice, the aggregate functions `COLL_AVG` and `COLL_COUNT` (and for
+that matter, by convention, any function starting with `COLL`) can be
+thought of as general-purpose functions. Generally, they do not have
+to be fed by the result of a grouping operation - unlike SQL's `COUNT`
+and `AVG` that are being fed exclusively from the results of grouping
+operations. (Furthermore, the SQL `COUNT` and `AVG` make use of SQL's
+syntactic sugar, where there is no explicit use of group variable, as
+explained in <<#sec:implicit-group-variable>>.)
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+This is a legitimate PartiQL expression:
+
+[source%unbreakable, partiql]
+----
+COLL_COUNT([5, {a:2, b:3}])
+----
+
+The result is `2`, since the input to `COLL_COUNT` is an array with
+two elements.
+====
+
+
+
+
+Similarly, it is fine to include in any clause an aggregate function fed
+by the result of a (sub)query.
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+In the following expression `COLL_COUNT` inputs the result of a query
+
+[source%unbreakable, partiql]
+----
+COLL_COUNT(SELECT VALUE x FROM logs x WHERE x.sensor=1)
+----
+====
+
+[%unbreakable]
+****
+NOTE: An efficient implementation will often avoid materializing the group
+variable. In many cases, like the ones of the above examples, the group
+can be streamed into the aggregate function.
+****
+
+
+[%unbreakable]
+****
+The semantics of the `SELECT` and `HAVING` clauses do not need to be
+aware of the presence of `GROUP BY` and treat differently (as SQL
+would do) these classes of functions:
+
+* scalar functions (e.g. `+`) that input scalars and output scalars
+* SQL aggregation functions (e.g. `SUM`) that input bags and output scalars
+
+Indeed, `HAVING` behaves identical to a `WHERE`, once groups are
+already formulated earlier.
+****
+
+
+The PartiQL approach provides two benefits: First, it leads to
+shorter, modular semantics. Second, it enables `GROUP BY` to address
+use cases that would otherwise need knowledge and non-trivial SQL
+programming of window functions. See <<xmpl:windows-by-grouping>>.
+
+
+[[sec:eqg]]
+==== Equivalence function used by grouping; grouping of `NULL` and `MISSING`
+
+The equivalence function stem:[eqg] extends SQL's respective function. In
+particular, it behaves as follows:
+
+* stem:[eqg("NULL", "NULL")] is true, despite stem:["NULL"="NULL"] not
+being true.
+
+* for any two non-null values stem:[x] and stem:[y],
+stem:[\gl{eqg}(x,y)] returns the same with stem:[x=y]. As
+is the case generally for stem:[=], while SQL's stem:[=]
+will error when given incompatible types, while the PartiQL
+stem:[=] will return `false`.
+
+Notice that PartiQL will group together the `NULL` and the `MISSING`
+grouping expressions, since any grouping expression resulting to
+`MISSING` has been coerced into `NULL` before `eqg` does comparisons
+for grouping.  <<#xmpl:grouping-null-missing>> shows the repercussions
+of coercing `NULL` into `MISSING` and also shows how to discriminate
+between `NULL` and `MISSING`, if so desired.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:grouping-null-missing%unbreakable]
+[subs="+normal"]
+====
+
+The query of <<sec:grouping-readings>> will group together any log
+readings where the `sensor` attribute is either `NULL` or is
+altogether `MISSING`. For example, if `logs` is
+
+
+
+[source%unbreakable, partiql]
+----
+logs:[
+    {'sensor':  1, 'co':0.4},
+    {'sensor':  2, 'co':0.3},
+    {'sensor':  null, 'co':0.1},
+    {'sensor':  1, 'co':0.2},
+    {'co':0.5}
+]
+----
+
+then the `GROUP BY` will output the collection of binding tuples
+
+
+stem:[ B_"GROUP"^"out" = B_"SELECT"^"in" = ] stem:[< <] +
+stem:[ (: "sensor":1, g: < < (: l:{"'sensor'":1, "'co'":0.4} :)  (: l:{"'sensor'":1, "'co'":0.2} :) > > :) ] +
+stem:[ (: "sensor":2, g: < < (: l:{"'sensor'":2, "'co'":0.3} :) > > :) ] +
+stem:[ (: "sensor":"null", g: < < (: l:{"'sensor'":"null", "'co'":0.1} :) (: l:{"'co'":0.5}  :) > > :) ] +
+stem:[ > > ]
+
+
+Notice that both the 3rd and 5th tuples `logs` of were grouped under
+the stem:["sensor":"null"] group, despite the `sensor` of the 3rd
+being `NULL` while the `sensor` of the 5th being `MISSING`. The query
+result is
+
+[source%unbreakable, partiql]
+----
+<<
+    {'sensor':1, 'readings':<0.4, 0.2>},
+    {'sensor':2, 'readings':<0.3>},
+    {'sensor':null, 'readings':<0.1, 0.5>}
+>>
+----
+
+If we wanted to discriminate the `NULL` from the `MISSING` we could
+write the following query
+
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'sensor': CASE WHEN missingFlag THEN MISSING ELSE sensor END,
+              'readings': (SELECT VALUE v.l.co FROM g AS v) }
+FROM logs AS l
+GROUP BY l.sensor IS MISSING AS missingFlag, l.sensor AS sensor GROUP AS g
+----
+
+In this case the would output the collection of binding tuples
+
+stem:[ B_"GROUP"^"out" = B_"SELECT"^"in" = ] stem:[< <] +
+stem:[ (: "missingFlag":"false", "sensor":1, g: < < (: l:{"'sensor'":1, "'co'":0.4} :)  (: l:{"'sensor'":1, "'co'":0.2} :) > > :) ] +
+stem:[ (: "missingFlag":"false", "sensor":2, g: < < (: l:{"'sensor'":2, "'co'":0.3} :) > > :) ] +
+stem:[ (: "missingFlag":"false", "sensor":"null", g: < < (: l:{"'sensor'":"null", "'co'":0.1} :) > > :) ] +
+stem:[ (: "missingFlag":"true", "sensor":"null", g: < < (: l:{"'co'":0.5}  :) > > :) ] +
+stem:[ > > ]
+
+and the query result would be
+
+
+[source%unbreakable, partiql]
+----
+<<
+    {'sensor':1, 'readings':<0.4, 0.2>},
+    {'sensor':2, 'readings':<0.3>},
+    {'sensor':null, 'readings':<0.1>},
+    {'readings':<0.5>}
+>>
+----
+
+====
+
+
+[[sec:group-all]]
+==== The `GROUP ALL` variant
+
+The `GROUP ALL` variant of `GROUP BY` outputs a single binding tuple,
+regardless of whether the `FROM`/`WHERE` produced any tuples, i.e.,
+regardless of whether its input stem:[B_"GROUP"^"in"] is empty
+or not.
+
+The `GROUP ALL` is not increasing the expressiveness of PartiQL.
+<<xmpl:group-all-core>> shows how to achieve without `GROUP ALL`,
+what the `GROUP ALL` can do. However, we include `GROUP ALL` for
+facilitating the reduction of SQL's aggregation into the core PartiQL
+(see <<sec:implicit-group-variable>>).
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:group-all-core%unbreakable]
+[subs="+normal"]
+====
+Consider again the `logs` data of <<xmpl:nesting-readings>> and assume
+that we want to count the total number of readings that are above
+`1.5` with a core PartiQL query.  (<<xmpl:group-by-nothing-sql>> does
+the same with SQL.)
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'largeco':  COLL_COUNT(g)}
+FROM logs AS l
+WHERE l.co > 1.5
+GROUP ALL AS g
+----
+
+Notice, there are no readings above `1.5` in the example data. Since there is
+no tuple that satisfies the `WHERE` clause
+
+stem:[B_"WHERE"^"out" = B_"GROUP"^"in" = < < > >] +
+stem:[B_"GROUP"^"out" = B_"SELECT"^"in" = < < (: g: < < > >  :) > >]
+
+Since `COLL_COUNT(<<>>)` is `0`, the query result is the collection
+
+[source%unbreakable, partiql]
+----
+<< {'largeco': 0} >>
+----
+
+Therefore the PartiQL query is equivalent to the plain SQL query
+
+[source%unbreakable, partiql]
+----
+SELECT COUNT(*) AS largeco
+FROM logs AS l
+WHERE l.co > 1.5
+----
+
+The following core PartiQL also accomplishes the same computation,
+without using `GROUP ALL`.
+
+[source%unbreakable, partiql]
+----
+{ 'largeco':  COLL_COUNT(SELECT VALUE l
+                         FROM logs AS l
+                         WHERE l.co > 1.5) }
+----
+====
+
+
+
+[[sec:sql-groupby]]
+=== SQL compatibility features
+
+The group-by and aggregation of PartiQL is backwards compatible to SQL.
+
+[[sec:grouping-attributes]]
+==== Grouping Attributes and Direct Use of Grouping Expressions
+
+For SQL compatibility PartiQL allows `GROUP BY ...,e,...` i.e., a
+grouping expression stem:[e] that is not associated with a grouping
+variable stem:[x]. (In core PartiQL, one would write `GROUP BY ...,e
+AS x,...`.)
+
+For SQL compatibility, PartiQL supports using the grouping expression
+`e` in `HAVING`, `ORDER BY`, and `SELECT` clauses. 
+
+The SQL form:
+[source%unbreakable, partiql]
+----
+FROM ...
+GROUP BY e, ...
+HAVING f(e, ...)
+ORDER BY f2(e, ...)
+SELECT f3(e, ...)
+----
+
+is syntactic sugar for the core PartiQL:
+
+[source%unbreakable, partiql]
+----
+FROM ...
+GROUP BY e AS x, ...
+HAVING f(x, ...)
+ORDER BY f2(x, ...)
+SELECT f3(x, ...)
+----
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:groupby-sql-vs-core%unbreakable]
+[subs="+normal"]
+====
+The SQL-compatible query
+
+[source%unbreakable, partiql]
+----
+SELECT v.a+1 AS bar
+FROM foo AS v
+GROUP BY v.a+1
+----
+
+is written in core PartiQL as
+
+[source%unbreakable, partiql]
+----
+SELECT VALUE {'bar':  x}
+FROM foo AS v
+GROUP BY v.a+1 AS x GROUP AS dontcare
+----
+====
+
+
+.What is the "`same expression`"
+[%unbreakable]
+****
+An open question in the equivalence of the two queries in
+<<xmpl:groupby-sql-vs-core>> is the exact meaning of "`same expression
+stem:[e] in `GROUP BY` and `SELECT` (or `HAVING`, `ORDER BY`)`". Is
+`v.a + 1` the same with `1 + v.a`?  Is `v.a+1` the same with `a+1` in
+the presence of a schema that dictates that the variable `v` is a
+tuple with an attribute `a`? Both SQL and PartiQL answer “no" and
+“yes" respectively to the two questions. In particular:
+
+An expression stem:[e] that appears in the `GROUP BY` clause and an
+expression stem:[e'] that appears in the `SELECT` or `HAVING` or
+`ORDER BY` are considered the same expression if they are
+syntactically identical after performing the schema-based rewritings
+of <<sec:schema>>.
+****
+
+[[sec:implicit-group-variable]]
+==== SQL's Implicit Use of the Group Variable in SQL Aggregate Functions
+
+SQL does not have explicit group variables. For SQL compatibility,
+PartiQL allows the SQL aggregation functions to be fed by expressions
+that do not explicitly say that there is iteration over the group
+variable. Suppose that a query
+
+. is a `SELECT` query,
+
+. lacks a `GROUP AS` clause, and
+
+. any of the `SELECT`, `HAVING`, and/or `ORDER BY` clauses contains a
+function call stem:[f(e)], where stem:[f] is a _SQL aggregation
+function_ such as `SUM` and `AVG`. (See <<sec:SQL-aggregation-functions>>)
+
+Then, the query is rewritten as follows:
+
+
+* if the query has a `GROUP BY` clause, add to it
++
+[source%unbreakable, partiql]
+----
+GROUP AS g
+----
++
+where `g` is a fresh variable, i.e., a variable that is not
+a database name nor a variable of the query or a variable of the queries
+within which it is nested.
+
+
+* if the query has no `GROUP BY` clause, add to it
++
+[source%unbreakable, partiql]
+----
+GROUP ALL GROUP AS g
+----
++
+where `g` is a fresh variable.
+
+
+* if the aggregation function call is `COUNT(*)`, then rewrite into
+`COUNT(g)`
+
+
+* otherwise, rewrite stem:[f(e)] into
++
+[source%unbreakable, partiql]
+----
+f(SELECT VALUE e1 FROM g AS p)
+----
++
+where stem:[e1] is produced from stem:[e] as follows: Consider the
+variables stem:[v_1, ..., v_n] that appear in stem:[B_"GROUP"^"in"]
+(i.e., the variables defined by the query's `FROM` and `LET` clauses)
+and are not grouping attributes. Substitute each identifier stem:[v_i]
+(that does not stand for attribute name) in stem:[e] with
+stem:[p.v_i].
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:groupby-sql%unbreakable]
+[subs="+normal"]
+====
+Consider again the query of <<xmpl:groupby-avg-count>>. It can be
+written in an SQL compatible way as
+
+[source%unbreakable, partiql]
+----
+SELECT l.sensor AS sensor,
+       AVG(l.co) AS avg,
+       COUNT(*) AS count
+FROM logs AS l
+GROUP BY l.sensor
+----
+====
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:group-by-nothing-sql%unbreakable]
+[subs="+normal"]
+====
+The query of <<xmpl:group-all-core>> can be written in standard SQL
+syntax as
+
+[source%unbreakable, partiql]
+----
+SELECT COUNT(g) AS largeco
+FROM logs AS l
+WHERE l.co > 1.5
+----
+====
+
+Notice that SQL does not allow nested aggregate
+functions. Respectively, PartiQL does not allow one to write queries
+that lack a `GROUP AS` or `GROUP ALL` clause and have nested aggregate
+SQL functions.
+
+[[sec:SQL-aggregation-functions]]
+==== Designation of SQL aggregate functions
+
+Each implementation will have a list of SQL aggregate functions, which
+are not necessarily just the ones prescribed by the standard (`COUNT`,
+`SUM`, `AVG`, etc). (Recall from <<sec:implicit-group-variable>> that
+SQL aggregate functions do not use an explicit group variable.)
+
+Furthermore, it is required that for each SQL aggregate function `f`,
+if an implementation offers a corresponding core PartiQL aggregate
+function, the PartiQL function is named `COLL_f`. For example, the
+core PartiQL aggregate `COLL_AVG` corresponds to the SQL `AVG`
+aggregate .  Nevertheless, it is possible that an implementation
+offers only `COLL_AVG` or offers only `AVG`. The semantic relationship
+between the SQL aggregate function and the corresponding core PartiQL
+aggregate function is the one explained in
+<<sec:implicit-group-variable>>: The SQL aggregate functions do not
+input explicit group variables and, thus, their semantics are
+explained by the reduction to the corresponding core PartiQL
+aggregate.
+
+[[sec:select-aliases-groupby]]
+==== Aliases from `SELECT` clause
+
+In SQL, a grouping expression may be an alias that is defined by the
+`SELECT` clause. For compatibility purposes, PartiQL adopts the same
+behavior.
+
+The query, which uses the `SELECT`-defined alias feature:
+
+[source%unbreakable, partiql]
+----
+SELECT ...,e AS a,...
+FROM ...
+GROUP BY ...,a,...
+----
+
+is syntactic sugar for the query:
+
+[source%unbreakable, partiql]
+----
+SELECT ...e AS a,...
+FROM ...
+GROUP BY ...,e,...
+----
+
+Notice that the grouping expression `a` is simply a shorthand for `e`.
+
+
+// TODO ??
+
+In the case that the grouping expression is a constant positive
+integer literal stem:[n], then it stands for the stem:[n]th attribute
+of the `SELECT` clause. However, this requires that the tuples
+produced by the `SELECT` have schema and they are ordered tuples. The
+relevant examples will be provided in the schema section.
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:select-aliases-groupby%unbreakable]
+[subs="+normal"]
+====
+
+Consider the database
+
+[source%unbreakable, partiql]
+----
+people: <<
+    {'name': 'zoe', 'age': 10, 'tag': 'child'},
+    {'name': 'zoe', 'age': 20, 'tag': 'adult'},
+    {'name': 'bill', 'age': 30, 'tag': 'adult'}
+>>
+----
+
+The query
+
+[source%unbreakable, partiql]
+----
+SELECT p.tag || ':' || p.name AS tagname, AVG(p.age) AS average
+FROM people AS p
+GROUP BY tagname
+----
+
+is equivalent to the query
+
+[source%unbreakable, partiql]
+----
+SELECT p.tag || ':' || p.name AS tagname, AVG(p.age) AS average
+FROM people AS p
+GROUP BY p.tag || ':' || p.name
+----
+
+Either query results into
+
+[source%unbreakable, partiql]
+----
+people: <<
+    {'tagname': 'child:zoe', 'average': 10},
+    {'tagname': 'adult:zoe', 'average': 20},
+    {'tagname': 'adult:bill', 'average': 30}
+>>
+----
+====
+
+[[sec:windows-by-grouping]]
+=== Windowing cases simplified by the PartiQL grouping
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[#xmpl:windows-by-grouping%unbreakable]
+[subs="+normal"]
+====
+
+Consider again a collection of sensor readings, this time with a
+timestamp.
+
+[source%unbreakable, partiql]
+----
+logs:  [
+    {'sensor':1, 'co':0.4, 'timestamp':04:05:06},
+    {'sensor':1, 'co':0.2, 'timestamp':04:05:07},
+    {'sensor':1, 'co':0.5, 'timestamp':04:05:10},
+    {'sensor':2, 'co':0.3}
+]
+----
+
+We look for the “jump" readings that are more than 2x the previous
+reading at the same sensor. The following query solves the problem
+using `GROUP BY`.
+
+
+[source%unbreakable, partiql]
+----
+SELECT sensor AS sensor,
+      (WITH orderedReadings
+               AS (SELECT v FROM oneSensorsReadings v ORDER BY v.timestamp)
+       SELECT r.co, r.timestamp
+       FROM orderedReadings r AT p
+       WHERE r.co > 2*orderedReadings[p-1].co
+       ORDER BY p
+      ) AS jumpReadings
+FROM logs l
+GROUP BY l.sensor AS sensor GROUP AS oneSensorsReadings
+----
+
+The result is
+
+[source%unbreakable, partiql]
+----
+<<
+    {'sensor':1, 'jumpReadings':[{'co':0.4, 'timestamp':04:05:06}]},
+    {'sensor':2, 'jumpReadings':[]}
+>>
+----
+====
+
+//  LocalWords:  PartiQL

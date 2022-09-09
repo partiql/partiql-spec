@@ -1,0 +1,373 @@
+[[section:environment-and-sfw]]
+== Queries, Environments and Binding Tuples
+
+// TODO GROUP AS should be be optional
+// TODO UNION should be above sfw_query?
+
+.EBNF Grammar for PartiQL Queries
+[#figure:query:bnf]
+[source%linenums%unbreakable, ebnf]
+----
+query = sfw_query
+      | expr_query ;
+sfw_query = [ "WITH", query, "AS", variable ],
+            select_clause,
+            from_clause,
+            [ "WHERE", expr_query ],
+            [ "GROUP", "BY", expr_query, [ "AS", variable ],
+                       { "," expr_query, [ "AS", variable ] },
+                       "GROUP", "AS", variable
+            [ "HAVING", expr_query ],
+            [ [ "OUTER" ], ( "UNION"|"INTERSECT"|"EXCEPT" ), [ "ALL" ] sfw_query ],
+            [ "ORDER", "BY", expr_query, [ "ASC" | "DESC" ], [ order_spec ],
+                       { "," expr_query, [ "ASC" | "DESC" ], [ order_spec ] },
+                       [ "GROUP", "AS", variable ],
+            [ "LIMIT", expr_query ],
+            [ "OFFSET", expr_query ] ;
+expr_query = "(", sfw_query, ")"
+           | path_expr
+           | function_name, "(", [expr_query, { ",", expr_query } ], ")"
+           | "{" [ expr_query, ":", expr_query, { ",", expr_query, ":", expr_query } ], "}"
+           | "[" [ expr_query, { ",", expr_query } ], "]"
+           | "<<" [ expr_query, { ",", expr_query } ], ">>"
+           | ? sql scalar expression ?
+           | value_constant ;
+path_expr = variable
+          | "(", expr_query, ")"
+          | path_expr, ".", attr_name
+          | path_expr, "[", expr_query, "]"
+          | path_expr, ".", "*"
+          | path_expr, "[", "*", "]" ;
+----
+
+:bnf-lines-group-by: lines 7-9
+:bnf-ref-group-by: <<#figure:query:bnf>> {bnf-lines-group-by}
+
+
+PartiQL may be seen as a functional programming language with composable
+semantics. Three aspects of the PartiQL syntax and semantics are
+characteristic of its functional orientation: First, every (sub-)query
+and every (sub-)expression input and output PartiQL data. Second, each
+clause of an SFW query (`SELECT`-`FROM`-`WHERE`) is itself a function. Third, every
+(sub-)query evaluates within an _environment_ created by the database
+names and the variables of the enclosing queries.
+
+[[sec:syntax-basics]]
+=== Basics of PartiQL Syntax
+
+A PartiQL query is either an _SFW query_ (i.e. `SELECT-FROM-WHERE`...,
+(lines 3-16) the grammar of <<#figure:query:bnf>>) or an _expression
+query_ (also called _simple expression_ in the rest,
+<<#figure:query:bnf> lines 17-30) such as a path expression (
+<<#figure:query:bnf> lines 25-30) or a function invocation. Unlike SQL
+expressions, which are restricted to outputting scalar and null
+values, PartiQL expressions output arbitrary PartiQL values, and are
+fully composable within larger SFW queries and expressions. Indeed,
+PartiQL allows the top-level query to also be an expression query, not
+just a SFW query as in SQL.
+
+An PartiQL (sub)query is evaluated within an environment, which provides
+variable bindings (as defined next).
+
+[[sec:environments-and-bindings]]
+=== Environments
+
+.EBNF Grammar for PartiQL Names
+[#figure:names:bnf]
+[source%linenums%unbreakable, ebnf]
+----
+bind_name = global_name
+          | variable ;
+qualified_name = identifier, ".", identifier, { ".", identifier } ;
+variable_name = identifier ;
+identifier = ("$"|"_"|letter), { ("$"|"_"|letter|digit) }
+           | '"', ? quoted identifier body ?, '"' ;
+----
+
+Each PartiQL (sub-)query and PartiQL (sub-)expression stem:[q] is
+evaluated within the _database environment_ stem:[p_0] created by the
+database names and the _variables environment_ stem:[p] created by the
+defined query variables. The pair of these environments, stem:[(p_0, p)] is
+collectively called the _bindings environment_.
+
+In either case, an environment is a _binding tuple_
+stem:[<<x_1:v_1,...,x_n:v_n>>], where each stem:[x_i] is a _bind name_
+(<<figure:names:bnf>> lines 1-6) that is unique and binds to the
+PartiQL _value_ stem:[v_i].  The two distinct environments may also be
+thought of as _global_ (the database object names) and _local_ (the
+lexically defined variables in a particular scope of the query).
+
+Similarly, for a given stem:[q] at compile (i.e. planning) time, a
+_database type environment_, stem:[Gamma_0], and _variables type
+environment_, stem:[Gamma] are defined. The type environment is a
+_binding tuple_ stem:[<<x_1:tau_1,...,x_n:tau_n>>] , where each
+stem:[x_i] is a _name_ that is unique and binds to the PartiQL _type_
+stem:[tau_i]. For schema-less values, stem:[tau] can be considered the
+union of any possible type (for which all operations are _potentially_
+applicable). This is discussed in more detail in <<#sec:schema>>.
+
+_Qualified names_ (<<figure:names:bnf>> line 3) only ever appear in
+the _database environment_.  Lexically defined _variable names_
+(<<figure:names:bnf>> line 4) are always just simple identifiers
+(<<figure:names:bnf>> lines 5-6). For example, a relational database
+might define a compound name `mydb.log`, where `mydb` is the schema
+(and not actually a value) and `log` could be a table name within that
+schema. Note, that a qualified name is distinct from a quoted
+identifier that contains a dot. Thus, the qualified name `mydb.log` is
+distinct from the bind name `"mydb.log"`.
+
+
+
+
+
+// .{nbsp} generates a `Figure X.` caption with no 'label'
+.{nbsp} 
+[%unbreakable]
+[subs="+normal"]
+====
+
+Let us assume that we evaluate the following query on the database of
+<<#figure:values:example-value>>, whose top-level value is named
+`mydb.log`.
+
+
+[#listing:x1]
+[source%unbreakable, partiql]
+----
+SELECT x.resourceId
+FROM mydb.log.configurationItems x
+----
+
+The query is evaluated within the database environment stem:[p_0 =
+<<"mydb.log : { 'fileversion': '1.0', 'configurationItems': ...  }">>]
+and the variables environment stem:[p_1 = <<>>].  Notice the database
+environment stem:[p_0] has a single name/value pair, which corresponds
+to the only name (`mydb.log`) of the database of
+<<#figure:values:example-value>>.  The variables environment has no
+name/value pair because the above query is not a subquery of a larger
+query.
+
+Next, consider the subexpression `x.resourceId` of the example’s
+query. This subexpression will, generally, be evaluated many times -
+once for each `x`.  Technically, each time it is evaluated within the
+same database environment stem:[p_0] and within a variables
+environment stem:[p_2 = (: x : ... :)], i.e., a variables environment
+that defines the variable `x`.
+====
+
+
+
+*Remark on relationship of binding tuples to PartiQL tuples* A binding
+tuple is similar to a PartiQL tuple, if you think of the bind names as
+attribute names. The characterization "`binding`" pertains to its use in
+the semantics (e.g. an association of names to types) and the fact that
+qualified names are not reified in the PartiQL data model, and we have a
+representation. As we will see collections of binding tuples will be
+homogenous, i.e., they will all have the same "`attribute`" names. Also
+important, is that when we represent binding tuples we explicitly
+represent a variable with a `MISING` value, as opposed to omitting it because
+the lack of a variable name is distinct from a variable whose value is `MISSING`.
+For example, we write stem:[<<x : 1, y: "MISSING">>] instead of stem:[<<x : 1>>].
+
+*Evaluation in environment* The notation stem:[(p_0,p) |-- q -> v]
+denotes that the PartiQL query stem:[q] evaluates to the value
+stem:[v] when evaluated within the database environment stem:[p_0] and
+the variables environment stem:[p], i.e. when every variable of
+stem:[q] is instantiated by its binding in stem:[p] and each database
+name is instantiated to its value in stem:[p_0]. For example, consider
+the query `x + y / 2`, the database environment stem:[p_0 = <<x:5>>]
+and the variables environment stem:[p = <<y:3>>]. Then
+stem:[(p_0,p) |-- "(x+y)/2" -> "5+3/2" -> 4].
+
+[[sec:clause-semantics]]
+=== The semantics of each clause of an SFW query explained as input and output of binding tuples
+
+The semantics of PartiQL are shorter than the semantics of SQL
+itself—despite being backwards compatible with SQL. The key reason is
+that the semantics of each clause of an SFW query in the PartiQL core
+can be understood in isolation from the other clauses. A clause is
+simply a function that inputs and outputs binding tuples. Thus the
+specifics of how the binding tuples of a query and of its subqueries are
+produced are a central part of the semantics. At a high level (which
+will be elaborated upon later) the construction of binding environments
+proceeds as follows:
+
+1. When a query is submitted to a database, it is evaluated in an empty
+variables environment stem:[p = <<>>]
+
+2. The `FROM` clause of a SFW query produces new environments by concatenating
+bindings of the `FROM` variables to the environment of its SFW query, as
+explained below.
++
+The subqueries that appear in the `WHERE`, `SELECT`, etc clauses are evaluated in these
+new environments. The optional `GROUP BY` clause also produces additional variable
+bindings, as explained in <<section:groupby>>.
+
+.An Example SFW Query with Flow of Binding Tuples
+[#xmpl:sfw_bindings%unbreakable]
+[subs="+normal"]
+====
+stem:[p_0: << "mydb.r" : \[ 3, 'x'\], "mydb.s" : < < {'a':1, 'b': 2}, {'a': 3} > > >> ] +
+stem:[p = <<>>]
+
+`FROM mydb.r AS x, mydb.s AS y` +
+stem:[B_"FROM"^"out" = B_"WHERE"^"in" = ] +
+stem:[< <] +
+stem:[  <<x:3, y:{'a':1, 'b':2}>>] +
+stem:[  <<x:3, y:{'a':3}>>] +
+stem:[  <<x:'x', y:{'a':1, 'b':2}>>] +
+stem:[  <<x:'x', y:{'a':3}>>] +
+stem:[> >]
+
+
+`WHERE x > y.b` +
+stem:[B_"WHERE"^"out" = B_"SELECT"^"in" = ] +
+stem:[< <] stem:[<<x:3, y:{'a':1, 'b':2}>>] stem:[> >]
+
+
+`SELECT x AS foo, y.a AS bar` +
+stem:["Result" = < < <<{"foo":3, "bar":1}>> > >]
+====
+ 
+[discrete]
+==== SFW query clauses as operators that input/output binding tuples
+
+Similar to SQL semantics, the clauses of an PartiQL SFW query are
+evaluated in the following order: `WITH`, `FROM`, `LET`, `WHERE`,
+`GROUP BY`, `HAVING`, `LETTING` (which is special to PartiQL), `ORDER
+BY`, `LIMIT`/`OFFSET`, and `SELECT` (or `SELECT VALUE` or `PIVOT`,
+which are both special to ion PartiQL).  footnote:[PartiQL also
+supports a syntax improvement where `SELECT` is optionally written as
+the last clause since, anyway, that’s the proper way to read an SQL
+query.]
+
+Using the example of <<xmpl:sfw_bindings>>, we illustrate how the
+clauses of an SFW query input and output binding tuples. In the
+<<xmpl:sfw_bindings>>, the `FROM`, `WHERE`, and `SELECT` clauses
+of the example query are displayed apart from each other so that the
+example can also illustrate the binding tuples that flow from the one
+clause to the next.
+
+The query is evaluated within the bindings environment stem:[(p_0, p)]
+shown at the top of <<xmpl:sfw_bindings>>. Consequently, the
+`FROM` clause is evaluated in the same environment. Thereafter the
+`FROM` clause outputs the bag of binding tuples stem:[B_"FROM"^"out"],
+which has four binding tuples in the example. In each binding tuple of
+stem:[B_"FROM"^"out"] , each variable of the `FROM` clause is bound to
+a value. There are no restrictions that a variable binds to homogenous
+values across binding tuples. In the example, `x` binds to two values
+that are heterogeneous: some bindings of `x` bind to a number, while
+others to a string. It would also be possible that a variable binds
+to, say, a scalar in one binding, while the same variable binds to a
+complex value in another binding.
+
+Each subsequent clause inputs a bag of binding tuples, evaluates the
+constituent expressions of the clause (which may themselves contain
+nested SFW queries), and outputs a bag of binding tuples that is in
+turn input by the next clause. For instance, the `WHERE` clause inputs
+the bag of binding tuples that have been output by the `FROM` clause
+(stem:[B_"FROM"^"out" = B_"WHERE"^"in"]), and outputs the subset
+thereof that satisfies the condition expression of the `WHERE`
+clause. This subset is the stem:[B_"WHERE"^"out" = B_"SELECT"^"in"].
+
+In particular, the `WHERE`’s condition is evaluated once for each
+input binding tuple stem:[b] in stem:[B_"WHERE"^"in"]. In general,
+each evaluation is done within the bindings environment
+stem:[(p_0,p || b)] , i.e., the concatenation of the binding tuple
+stem:[p] (where stem:[p] is the binding environment of the SFW query)
+with the binding tuple stem:[b] that has the variables of the
+clause. In the particular example stem:[p || b] is simply stem:[b]
+since stem:[p=<<>>]. The condition is evaluated once for each of the
+four input binding tuples of stem:[B_"WHERE"^"in"]. The variables
+environment of the first evaluation is:
+
+stem:[p = <<x:3, y: { 'a':1, 'b':2 } >>]
+
+The condition evaluates to for the first binding tuple of
+stem:[B_"WHERE"^"in"], since
+
+stem:[(p_0,p) |-- x > y.b -> 3 > { 'a':1, 'b':3}.b -> true ]
+
+Thus the first binding tuple of stem:[B_"WHERE"^"in"] is
+output from the `WHERE` and is input to `SELECT`.
+
+The pattern of "`input bag of binding tuples, evaluate constituent
+expressions, output bag of binding tuples`" has a few exceptions:
+First, the `ORDER BY` clause inputs a bag of binding tuples and
+outputs an array of binding tuples. Second, a `LIMIT`/`OFFSET` clause
+need not evaluate its constituent expression for each input binding
+tuple. For example a `LIMIT 10` clause that inputs an array with 100
+binding tuples need not access binding tuples 11-100.
+
+Finally, the `SELECT` clause is responsible for converting from
+binding tuples to collections of arbitrary PartiQL elements. The
+`SELECT` inputs a bag (or array, if `ORDER BY` is present) of binding
+tuples, and outputs the SFW query’s result, which is a bag
+(resp. array) with exactly one element for each input binding
+tuple. In the example, the `SELECT` expressions `x` and `y.a` are
+evaluated once for each of the input binding tuples of
+stem:[B_"SELECT"^"in"], which in this example happen to be just one
+binding tuple.
+
+Finally, notice that the above discussion of SFW queries did not
+capture the set operators `UNION`, `INTERSECT`, and `EXCEPT`. As is
+the case with SQL semantics too, the coordination of with the set
+operators requires attention.
+
+[discrete]
+==== PartiQL clauses as operators
+
+In summary, each clause of PartiQL is an operator that inputs/outputs
+binding tuples. As such, we can (and will) present the semantics of
+each clause separately from the semantics of the other clauses. This
+is not the case in SQL: Notably, in the presence of aggregation
+functions the `SELECT`, `HAVING`, and `WHERE` cannot be interpreted in
+isolation; they can only be interpreted along with the `GROUP BY`
+clause.
+
+[[sec:scoping-variables]]
+=== Scoping Rules of Variables
+
+As in any programming language, the PartiQL semantics have to deal
+with issues of variable scope. For example, how are references to `x`
+resolved in the following query:
+
+[#figure:x2]
+[source%unbreakable, partiql]
+----
+SELECT x.a AS a
+FROM db1 AS x
+WHERE x.b IN (SELECT x.c FROM db2 AS x)
+----
+
+Since this is an SQL query and PartiQL is backwards compatible to SQL,
+it is easy to tell that the `x` in `x.c` resolves to the variable
+defined by the inner query’s `FROM` clause.
+
+// TODO s/thinner/the inner/
+
+Technically, this scoping rule is captured by the following handling
+of binding tuples. The inner `FROM` clause is evaluated with a
+variables environment stem:[p = <<x:...>>]; its `x` is the one defined
+by the outer `FROM`. Then the inner `FROM` clause outputs a binding
+stem:[b = <<x..>>]; this `x` is defined by thinner `FROM`. Then the
+`x.c` is evaluated in the concatenation stem:[p||b] and because `x`
+appears in both stem:[p] and stem:[b], the concatenation keeps only
+the `x` of its right argument. Essentially by putting stem:[b] as the
+right argument of the concatenation, the semantics indicate that the
+variables of stem:[b] have precedence over synonymous variables in the
+left argument (which was the stem:[p]).
+
+Generally, given two binding tuples stem:[b] and stem:[b'], their
+concatenation is a binding tuple, denoted as stem:[b||b'], that has
+the variable bindings of both stem:[b] and stem:[b']. This creates the
+possibility that both stem:[b] and stem:[b'] have the same variable
+stem:[x]. In this case, the concatenation stem:[b||b'] will have the
+stem:[b'.x] and its value; it will not have the stem:[b.x] and its
+value.
+
+Note, the above does not resolve scoping issues resulting from conflicts
+between the database environment and the variables environment. We
+resolve these conflicts by explicit rules.
+
+//  LocalWords:  PartiQL

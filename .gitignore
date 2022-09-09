@@ -1,11 +1,12 @@
 /.vscode/
 
-*.tex-e
-*.log
-*.pdf
-*.aux
-*.out
-*.gz
-*.fls
-*.toc
-*.fdb_latexmk
+# build
+build
+
+# environment assets
+fonts
+
+# ruby stuff
+.ruby-version
+.ruby-gemset
+Gemfile.lock

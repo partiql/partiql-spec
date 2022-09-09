@@ -1,0 +1,111 @@
+= PartiQL Language Specification
+
+This is the link:https://asciidoc.org/[AsciiDoc] source for the link:https://partiql.org/[PartiQL] specification.
+
+== Editing
+
+AsciiDoc is supported by link:https://docs.asciidoctor.org/asciidoctor/latest/tooling[major repository hosting providers and many IDEs].
+
+== How to Build the Spec
+
+=== Pre-requisites
+
+1. Install link:https://github.com/rbenv/rbenv#installation[rbenv]
++
+[source, shell]
+.terminal
+```
+brew install rbenv
+rbenv init
+```
+
+2. Install the latest version of ruby
++
+[source, shell]
+.terminal
+```
+rbenv install $(rbenv install -l | grep -v - | tail -1)
+```
+
+3. Install rbenv shell integration (replace .zshrc with .bash_profile if you use bash)
++
+[source,shell]
+.terminal
+```
+echo "\n# rbenv integration" >> ~/.zshrc
+echo "eval \"\$(rbenv init -)\"" >> ~/.zshrc
+source ~/.zshrc
+```
+
+4. Install Vollkorn & Iosevka fonts (Open Font License)
++
+[source,shell]
+.terminal
+```
+mkdir fonts
+curl -L -o fonts/vollkorn.zip http://vollkorn-typeface.com/download/vollkorn-4-105.zip
+unzip fonts/vollkorn.zip -d fonts/vollkorn
+curl -L -o fonts/iosevka.zip https://github.com/be5invis/Iosevka/releases/download/v16.0.2/ttf-iosevka-term-slab-16.0.2.zip
+unzip fonts/iosevka.zip -d fonts/iosevka
+
+```
+
+5. Install fonts and such needed by AsciiMath
++
+[source,shell]
+.terminal
+```
+brew tap homebrew/cask-fonts 
+brew install glib gdk-pixbuf cairo pango cmake font-computer-modern
+
+cd ~/Library/Fonts
+curl -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/cmex10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/cmmi10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/cmr10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/cmsy10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/esint10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/eufm10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/msam10.ttf \
+     -LO http://mirrors.ctan.org/fonts/cm/ps-type1/bakoma/ttf/msbm10.ttf
+
+```
+
+=== Setup
+
+Set the spec to use the latest ruby, and install required gems
+
+[source, shell]
+.terminal
+```
+cd <spec>
+rbenv local $(rbenv install -l | grep -v - | tail -1)
+bundle install
+```
+
+=== Building
+
+Output will be built to
+  - build/PartiQL-Specification.html
+  - build/PartiQL-Specification.pdf
+
+To watch sources for changes and auto-rebuild `HTML` and quick `PDF`
+[sourc,shell]
+.terminal
+```
+bundle exec rake spec:watch
+```
+
+
+To build `HTML` and optimized `PDF`
+[sourc,shell]
+.terminal
+```
+bundle exec rake
+```
+
+
+
+
+= License
+
+This library is licensed under the link:LICENSE[PartiQL Specification License].
