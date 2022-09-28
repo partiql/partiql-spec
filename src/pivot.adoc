@@ -32,7 +32,7 @@ collection of tuples.
 [source%unbreakable, partiql]
 ----
 PIVOT x.v AT x.a
-FROM << {'a': 'first', 'v': 'john'}, {'a': 'last', 'v': 'doe'} >>
+FROM << {'a': 'first', 'v': 'john'}, {'a': 'last', 'v': 'doe'} >> as x
 ----
 
 The result is
