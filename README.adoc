@@ -8,6 +8,43 @@ AsciiDoc is supported by link:https://docs.asciidoctor.org/asciidoctor/latest/to
 
 == How to Build the Spec
 
+=== Docker
+
+The easiest way to build the specification is to use the `Dockerfile` to build an image that you can use to containerize
+the build.  This can be done as follows assuming you have `docker` in your path:
+
+[source, shell]
+```
+./build-docker.sh
+```
+
+The above command will build the specification and is a short-hand for building the image, and running
+`bundle exec rake` inside of it.  Cleanup and other targets are available:
+
+[source, shell]
+```
+# the default target builds an optimized PDF/HTML to ./build
+./build-docker.sh spec:build
+
+# build, watch the sources, and re-build on changes
+./build-docker.sh spec:watch
+
+# clean the build
+./build-docker.sh spec:clean
+
+```
+
+==== Potential Issues
+
+If you run the instructions for non-Docker building and run into this message or something like it:
+
+[source, shell]
+```
+rbenv: version `3.1.2' is not installed (set by /workspace/.ruby-version)
+```
+
+The Docker version of the build does not use local environment versions for `rbenv` because it is not portable and the container controls the "global" Ruby installation so you can work around this by removing the `.ruby-version` file.
+
 === Pre-requisites
 
 1. Install link:https://github.com/rbenv/rbenv#installation[rbenv]
