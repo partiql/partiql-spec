@@ -8,6 +8,32 @@ AsciiDoc is supported by link:https://docs.asciidoctor.org/asciidoctor/latest/to
 
 == How to Build the Spec
 
+=== Docker
+
+The easiest way to build the specification is to use the `Dockerfile` to build an image that you can use to containerize
+the build.  This can be done as follows assuming you have `docker` in your path:
+
+[source, shell]
+```
+./build-docker.sh
+```
+
+The above command will build the specification and is a short-hand for building the image, and running
+`bundle exec rake` inside of it.  Cleanup and other targets are available:
+
+[source, shell]
+```
+# the default target builds an optimized PDF/HTML to ./build
+./build-docker.sh spec:build
+
+# build, watch the sources, and re-build on changes
+./build-docker.sh spec:watch
+
+# clean the build
+./build-docker.sh spec:clean
+
+```
+
 === Pre-requisites
 
 1. Install link:https://github.com/rbenv/rbenv#installation[rbenv]
