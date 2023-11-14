@@ -1,5 +1,5 @@
 name: partiql-spec
-version: 1.0.0
+version: '1.0.0'
 start_page: main.adoc
-title: PartiQL Specification
+title: 'PartiQL Specification'
 
