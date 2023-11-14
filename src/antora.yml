@@ -1,4 +1,5 @@
 name: partiql-spec
 version: '1.0.0'
 title: 'PartiQL Specification'
-
+nav:
+  - modules/ROOT/nav.adoc
