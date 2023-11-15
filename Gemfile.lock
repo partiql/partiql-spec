@@ -1,0 +1,129 @@
+GIT
+  remote: https://github.com/prawnpdf/prawn-table.git
+  revision: 38b5bdb5dd95237646675c968091706f57a7a641
+  specs:
+    prawn-table (0.2.3)
+      prawn (>= 1.3.0, < 3.0.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    Ascii85 (1.1.0)
+    addressable (2.8.5)
+      public_suffix (>= 2.0.2, < 6.0)
+    afm (0.2.2)
+    asciidoctor (2.0.20)
+    asciidoctor-mathematical (0.3.5)
+      asciidoctor (~> 2.0)
+      asciimath (~> 2.0)
+      mathematical (~> 1.6.0)
+    asciidoctor-pdf (2.3.9)
+      asciidoctor (~> 2.0)
+      concurrent-ruby (~> 1.1)
+      matrix (~> 0.4)
+      prawn (~> 2.4.0)
+      prawn-icon (~> 3.0.0)
+      prawn-svg (~> 0.32.0)
+      prawn-table (~> 0.2.0)
+      prawn-templates (~> 0.1.0)
+      treetop (~> 1.6.0)
+    asciimath (2.0.5)
+    byebug (11.1.3)
+    coderay (1.1.3)
+    concurrent-ruby (1.2.2)
+    css_parser (1.16.0)
+      addressable
+    ffi (1.16.3)
+    formatador (1.1.0)
+    guard (2.18.1)
+      formatador (>= 0.2.4)
+      listen (>= 2.7, < 4.0)
+      lumberjack (>= 1.0.12, < 2.0)
+      nenv (~> 0.1)
+      notiffany (~> 0.0)
+      pry (>= 0.13.0)
+      shellany (~> 0.0)
+      thor (>= 0.18.1)
+    guard-compat (1.2.1)
+    guard-shell (0.7.2)
+      guard (>= 2.0.0)
+      guard-compat (~> 1.0)
+    hashery (2.1.2)
+    i18n (1.14.1)
+      concurrent-ruby (~> 1.0)
+    listen (3.8.0)
+      rb-fsevent (~> 0.10, >= 0.10.3)
+      rb-inotify (~> 0.9, >= 0.9.10)
+    lumberjack (1.2.10)
+    mathematical (1.6.14)
+      ruby-enum (~> 0.4)
+    matrix (0.4.2)
+    method_source (1.0.0)
+    nenv (0.3.0)
+    notiffany (0.1.3)
+      nenv (~> 0.1)
+      shellany (~> 0.0)
+    pdf-core (0.9.0)
+    pdf-reader (2.11.0)
+      Ascii85 (~> 1.0)
+      afm (~> 0.2.1)
+      hashery (~> 2.0)
+      ruby-rc4
+      ttfunk
+    polyglot (0.3.5)
+    prawn (2.4.0)
+      pdf-core (~> 0.9.0)
+      ttfunk (~> 1.7)
+    prawn-icon (3.0.0)
+      prawn (>= 1.1.0, < 3.0.0)
+    prawn-svg (0.32.0)
+      css_parser (~> 1.6)
+      prawn (>= 0.11.1, < 3)
+      rexml (~> 3.2)
+    prawn-templates (0.1.2)
+      pdf-reader (~> 2.0)
+      prawn (~> 2.2)
+    pry (0.14.2)
+      coderay (~> 1.1)
+      method_source (~> 1.0)
+    pry-byebug (3.10.1)
+      byebug (~> 11.0)
+      pry (>= 0.13, < 0.15)
+    public_suffix (5.0.3)
+    pygments.rb (2.4.1)
+    rake (13.1.0)
+    rb-fsevent (0.11.2)
+    rb-inotify (0.10.1)
+      ffi (~> 1.0)
+    rexml (3.2.6)
+    rghost (0.9.8)
+    ruby-enum (0.9.0)
+      i18n
+    ruby-rc4 (0.1.5)
+    shellany (0.0.1)
+    thor (1.3.0)
+    treetop (1.6.12)
+      polyglot (~> 0.3)
+    ttfunk (1.7.0)
+
+PLATFORMS
+  x86_64-linux
+
+DEPENDENCIES
+  asciidoctor
+  asciidoctor-mathematical (= 0.3.5)
+  asciidoctor-pdf
+  guard
+  guard-shell
+  mathematical (= 1.6.14)
+  prawn
+  prawn-svg
+  prawn-table!
+  pry
+  pry-byebug
+  pygments.rb
+  rake
+  rghost
+
+BUNDLED WITH
+   2.4.10

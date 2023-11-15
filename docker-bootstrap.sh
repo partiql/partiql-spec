@@ -2,6 +2,7 @@
 set -e
 
 BOOTSTRAP_DIR=${HOME}/bootstrap
+RUBY_VERSION="3.2.2"
 
 # Install rbenv
 curl -fsSL https://github.com/rbenv/rbenv-installer/raw/HEAD/bin/rbenv-installer | bash
@@ -12,8 +13,8 @@ echo 'eval "$(~/.rbenv/bin/rbenv init - zsh)"' >> ~/.zshrc
 eval "$(~/.rbenv/bin/rbenv init - bash)"
 
 # Install latest stable Ruby
-rbenv install $(rbenv install -l | grep -v - | tail -1)
-rbenv global $(rbenv install -l | grep -v - | tail -1)
+rbenv install ${RUBY_VERSION}
+rbenv global ${RUBY_VERSION}
 
 # Install our required Gems
 cd ${BOOTSTRAP_DIR}
