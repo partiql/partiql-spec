@@ -16,6 +16,7 @@ jobs:
   publish:
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v3
       - run: ls
       - name: Build using Docker
         run: /bin/bash ./build-docker.sh
