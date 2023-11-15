@@ -10,3 +10,4 @@ fonts
 # ruby stuff
 .ruby-version
 .ruby-gemset
+Gemfile.lock

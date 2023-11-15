@@ -140,9 +140,10 @@ To build `HTML` and optimized `PDF`
 bundle exec rake
 ```
 
+=== Releasing
 
+To perform a release, update `revnumber` and remove `revremark` in `src/main.adoc` in a single commit. Once updated, tag the commit. Then, update the `revnumber` and re-add `revremark` accordingly.
 
-
-= License
+== License
 
 This library is licensed under the link:LICENSE[PartiQL Specification License].

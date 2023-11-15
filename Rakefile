@@ -1,9 +1,5 @@
-version_string = `git describe --tag | cut  -d "-" -f 1,2 | tr - .`.chomp
-if version_string.empty?
-  version_string = '0'
-end
 date_string = Time.now.strftime("%Y-%m-%d")
-params = "--attribute revnumber='#{version_string}' --attribute revdate='#{date_string}'"
+params = "--attribute revdate='#{date_string}'"
 
 image_files = Rake::FileList.new("src/images/*.png", "src/images/*.svg") do |fl|
   fl.exclude("~*")
