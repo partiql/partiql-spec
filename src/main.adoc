@@ -1,8 +1,8 @@
 = PartiQL Specification
 The PartiQL Specification Committee
+v0.3, 2023-11-15: PRE-RELEASE
 :doctype: book
 :creator: {author}
-:revnumber: v0.3.0-SNAPSHOT
 :copyright: Copyright ©2019 Amazon.com Inc. or Affiliates (“Amazon”)
 :docinfo:
 :sectnums:
