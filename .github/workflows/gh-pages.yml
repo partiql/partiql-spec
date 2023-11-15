@@ -18,7 +18,8 @@ jobs:
     steps:
       - name: Build using Docker
         run: |
-          ./build-docker.sh
+          ls
+          /bin/bash ./build-docker.sh
       - name: Move to Publish Directory
         run: |
           mkdir ./publish
