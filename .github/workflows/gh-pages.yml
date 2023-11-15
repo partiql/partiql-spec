@@ -16,10 +16,9 @@ jobs:
   publish:
     runs-on: ubuntu-22.04
     steps:
+      - run: ls
       - name: Build using Docker
-        run: |
-          ls
-          /bin/bash ./build-docker.sh
+        run: /bin/bash ./build-docker.sh
       - name: Move to Publish Directory
         run: |
           mkdir ./publish
@@ -30,4 +29,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./publish
-
