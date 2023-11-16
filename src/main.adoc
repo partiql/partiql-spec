@@ -7,6 +7,8 @@ The PartiQL Specification Committee
 :copyright: Copyright ©2019 Amazon.com Inc. or Affiliates (“Amazon”)
 :docinfo:
 :sectnums:
+:sectanchors:
+:sectlinks:
 :sectnumlevels: 5
 :toc:
 :toclevels: 4
