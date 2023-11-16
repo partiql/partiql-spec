@@ -1,7 +1,7 @@
-# Attempt to grab the date of the latest commit. If unable to, we use the current date.
+# Attempt to grab the date of the latest commit. If unable to, fail.
 date_string = `git log -1 --pretty='format:%cd' --date=format:'%Y-%m-%d'`.chomp
 if date_string.empty?
-  date_string = Time.now.strftime("%Y-%m-%d")
+  raise "Failed to get the date from the latest commit. Do you have access to the Git log?"
 end
 params = "--attribute revdate='#{date_string}'"
 
