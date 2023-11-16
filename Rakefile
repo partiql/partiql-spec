@@ -1,4 +1,8 @@
-date_string = Time.now.strftime("%Y-%m-%d")
+# Attempt to grab the date of the latest commit. If unable to, we use the current date.
+date_string = `git log -1 --pretty='format:%cd' --date=format:'%Y-%m-%d'`.chomp
+if date_string.empty?
+  date_string = Time.now.strftime("%Y-%m-%d")
+end
 params = "--attribute revdate='#{date_string}'"
 
 image_files = Rake::FileList.new("src/images/*.png", "src/images/*.svg") do |fl|
