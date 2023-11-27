@@ -2,9 +2,13 @@
 The PartiQL Specification Committee
 :doctype: book
 :creator: {author}
+:revnumber: v0.3.0-HEAD
+:revremark: PRE-RELEASE
 :copyright: Copyright ©2019 Amazon.com Inc. or Affiliates (“Amazon”)
 :docinfo:
 :sectnums:
+:sectanchors:
+:sectlinks:
 :sectnumlevels: 5
 :toc:
 :toclevels: 4

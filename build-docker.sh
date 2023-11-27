@@ -14,6 +14,6 @@ run_check docker build ${DOCKER_ARGS} -t ${IMAGE_TAG} \
   --build-arg GROUP_ID=$(id -g) \
   $(pwd)
 
-run_check docker run ${DOCKER_ARGS} -it --rm \
+run_check docker run ${DOCKER_ARGS} --rm \
   --mount type=bind,source="$(pwd)",target=/workspace \
   ${IMAGE_TAG} /bin/bash --login docker-run.sh "$@"

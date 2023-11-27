@@ -1,9 +1,9 @@
-version_string = `git describe --tag | cut  -d "-" -f 1,2 | tr - .`.chomp
-if version_string.empty?
-  version_string = '0'
+# Attempt to grab the date of the latest commit. If unable to, fail.
+date_string = `git log -1 --pretty='format:%cd' --date=format:'%Y-%m-%d'`.chomp
+if date_string.empty?
+  raise "Failed to get the date from the latest commit. Do you have access to the Git log?"
 end
-date_string = Time.now.strftime("%Y-%m-%d")
-params = "--attribute revnumber='#{version_string}' --attribute revdate='#{date_string}'"
+params = "--attribute revdate='#{date_string}'"
 
 image_files = Rake::FileList.new("src/images/*.png", "src/images/*.svg") do |fl|
   fl.exclude("~*")
