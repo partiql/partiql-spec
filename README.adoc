@@ -1,5 +1,7 @@
 = PartiQL Language Specification
 
+*NOTE*: This repository's contents have been transferred to the link:https://github.com/partiql/partiql-lang/[partiql-lang] repository.
+
 This is the link:https://asciidoc.org/[AsciiDoc] source for the link:https://partiql.org/[PartiQL] specification.
 
 == Editing
